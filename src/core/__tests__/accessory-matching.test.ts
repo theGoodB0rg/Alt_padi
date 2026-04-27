@@ -9,17 +9,20 @@ const source: ProductSnapshot = {
   price: { amount: 3278, currency: "NGN", raw: "3278.00" },
   rating: 4.2,
   specs: {
+    "product details":
+      "180° rotatable multi-function retractable weighing disc base mobile phone stand. Adjustable length: the length is adjustable, up and down can be rotated.",
+    "height & angle adjustable":
+      "360-degree swivel ball head. The height can be easily adjusted between 28 cm - 38 cm.",
+    "weighted base": "The base is made of weighted material for stability.",
     sku: "GE779EA50N40ONAFAMZ",
-    model: "....",
-    "shipping speed": "Excellent",
-    "customer rating": "Average"
+    model: "...."
   },
   source: "page"
 };
 
 describe("accessory matching", () => {
-  it("treats cheaper reviewed phone holders as actionable medium-confidence alternatives", () => {
-    const [score] = scoreCandidates(source, [
+  it("ranks a height-adjustable retractable holder above a cheaper flat folding holder", () => {
+    const scores = scoreCandidates(source, [
       {
         title: "Multifunctional Folding Metal Rotating Cell Phone Holder",
         url: "https://www.jumia.com.ng/holder.html",
@@ -29,11 +32,29 @@ describe("accessory matching", () => {
         reviewCount: 303,
         specs: {},
         source: "search"
+      },
+      {
+        title: "180° Rotatable Telescopic Height Adjustable Phone Holder With Weighted Base",
+        url: "https://www.jumia.com.ng/telescopic.html",
+        categoryPath: ["Phones & Tablets", "Mobile Phone Accessories", "Mounts & Stands", "Stands"],
+        price: { amount: 2799, currency: "NGN", raw: "₦ 2,799" },
+        rating: 4.1,
+        reviewCount: 28,
+        specs: {
+          "key features": "height adjustable telescopic retractable phone holder with weighted base"
+        },
+        source: "detail"
       }
     ]);
 
-    expect(score.confidence).toBe("medium");
-    expect(score.reasons).toEqual(expect.arrayContaining(["cheaper price", "similar title", "solid review signal"]));
-    expect(score.warnings).not.toContain("missing comparable specs");
+    expect(scores[0].product.url).toContain("telescopic");
+    expect(scores[0].reasons).toContain("matches functional features");
+    expect(scores[1].warnings).toEqual(
+      expect.arrayContaining([
+        "missing height-adjustable signal",
+        "missing retractable/telescopic signal",
+        "missing weighted-base signal"
+      ])
+    );
   });
 });

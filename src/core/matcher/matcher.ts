@@ -5,6 +5,33 @@ import { SCORE_WEIGHTS } from "@core/matcher/weights";
 const COMPARABLE_SPEC_KEY_PATTERN = /^(model|model number|size|screen size|display|capacity|weight|weight \(kg\)|color|colour|material|dimensions?|width|height|depth)$/i;
 const NOISY_SPEC_KEYS = new Set(["shipping speed", "quality score", "customer rating", "cancellation rate", "sku"]);
 const PLACEHOLDER_VALUES = new Set(["....", "...", "n/a", "na", "none", "-"]);
+const FUNCTIONAL_FEATURES = [
+  {
+    id: "height-adjustable",
+    label: "height-adjustable",
+    pattern: /\b(height adjustable|adjustable height|height can be|adjusted between|raise|lower|up and down)\b/i
+  },
+  {
+    id: "retractable",
+    label: "retractable/telescopic",
+    pattern: /\b(retractable|telescopic|extendable|adjustable length|length is adjustable)\b/i
+  },
+  {
+    id: "rotatable",
+    label: "rotatable/swivel",
+    pattern: /\b(rotatable|rotating|rotate|swivel|360|180|angle adjustable|adjustable angle)\b/i
+  },
+  {
+    id: "weighted-base",
+    label: "weighted-base",
+    pattern: /\b(weighted base|disc base|weighing disc|heavy base|stable base|stability)\b/i
+  },
+  {
+    id: "clamp-holder",
+    label: "clamp/holder",
+    pattern: /\b(clamp|clip|spring|holder|phone holder)\b/i
+  }
+] as const;
 
 export function scoreCandidates(
   source: ProductSnapshot,
@@ -61,6 +88,12 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
     total -= SCORE_WEIGHTS.missingDataPenalty;
     warnings.push("missing comparable specs");
   }
+
+  const featureResult = functionalFeatureScore(source, product);
+  total += featureResult.score * SCORE_WEIGHTS.functionalFeatureMatch;
+  total -= featureResult.missingRequiredCount * 8;
+  if (featureResult.score >= 0.65) reasons.push("matches functional features");
+  for (const warning of featureResult.warnings) warnings.push(warning);
 
   const dimensionScore = dimensionsCompatibility(source, product);
   total += dimensionScore * SCORE_WEIGHTS.dimensionsCompatibility;
@@ -120,6 +153,41 @@ function specOverlap(sourceEntries: Array<[string, string]>, candidate: ProductS
     if (candidateValue && normalize(value) === normalize(candidateValue)) matched += 1;
   }
   return matched / sourceEntries.length;
+}
+
+function functionalFeatureScore(
+  source: ProductSnapshot,
+  candidate: ProductSnapshot
+): { score: number; missingRequiredCount: number; warnings: string[] } {
+  const required = extractFunctionalFeatures(source);
+  if (!required.length) return { score: 0, missingRequiredCount: 0, warnings: [] };
+
+  const matched = extractFunctionalFeatures(candidate);
+  const matchedIds = new Set(matched.map((feature) => feature.id));
+  const matchedRequired = required.filter((feature) => matchedIds.has(feature.id));
+  const missingRequired = required.filter((feature) => !matchedIds.has(feature.id));
+
+  return {
+    score: matchedRequired.length / required.length,
+    missingRequiredCount: missingRequired.length,
+    warnings: missingRequired
+      .filter((feature) => feature.id !== "clamp-holder")
+      .map((feature) => `missing ${feature.label} signal`)
+  };
+}
+
+function extractFunctionalFeatures(product: ProductSnapshot): Array<(typeof FUNCTIONAL_FEATURES)[number]> {
+  const haystack = [
+    product.title,
+    product.brand,
+    product.seller,
+    product.categoryPath.join(" "),
+    ...Object.entries(product.specs).flatMap(([key, value]) => [key, value])
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return FUNCTIONAL_FEATURES.filter((feature) => feature.pattern.test(haystack));
 }
 
 function dimensionsCompatibility(source: ProductSnapshot, candidate: ProductSnapshot): number {
