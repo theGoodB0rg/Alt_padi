@@ -1,5 +1,6 @@
 import { runAlternativeSearch } from "@core/search-runner";
 import type { ProductSnapshot } from "@core/types";
+import { isMissingContentScriptError } from "@extension/contentScriptRecovery";
 import type { ExtensionRequest, ExtensionResponse } from "@extension/messages";
 import { jumiaNgAdapter } from "@marketplaces/jumia-ng/adapter";
 
@@ -33,9 +34,7 @@ async function handleSearch() {
     throw new Error("Open a Jumia Nigeria product page before searching.");
   }
 
-  const extracted = await chrome.tabs.sendMessage<ExtensionRequest, ExtensionResponse>(tab.id, {
-    type: "EXTRACT_CURRENT_PRODUCT"
-  });
+  const extracted = await extractCurrentProduct(tab.id);
   if (!extracted.ok || !("product" in extracted)) {
     throw new Error(extracted.ok ? "Product extraction failed." : extracted.error);
   }
@@ -44,6 +43,25 @@ async function handleSearch() {
     ...LIMITS,
     fetchText: fetchTextWithCache
   });
+}
+
+async function extractCurrentProduct(tabId: number): Promise<ExtensionResponse> {
+  try {
+    return await chrome.tabs.sendMessage<ExtensionRequest, ExtensionResponse>(tabId, {
+      type: "EXTRACT_CURRENT_PRODUCT"
+    });
+  } catch (error) {
+    if (!isMissingContentScriptError(error)) throw error;
+
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["assets/content.js"]
+    });
+
+    return chrome.tabs.sendMessage<ExtensionRequest, ExtensionResponse>(tabId, {
+      type: "EXTRACT_CURRENT_PRODUCT"
+    });
+  }
 }
 
 async function fetchTextWithCache(url: string): Promise<string> {
