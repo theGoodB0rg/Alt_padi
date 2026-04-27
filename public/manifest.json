@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "AltPadi",
+  "short_name": "AltPadi",
+  "version": "0.1.0",
+  "description": "Find cheaper Jumia alternatives in Nigeria using price, brand, specs, ratings, and review signals.",
+  "permissions": ["activeTab", "sidePanel", "storage"],
+  "host_permissions": ["https://www.jumia.com.ng/*"],
+  "action": {
+    "default_title": "AltPadi: Cheaper Jumia Alternatives"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.jumia.com.ng/*"],
+      "js": ["assets/content.js"]
+    }
+  ]
+}
