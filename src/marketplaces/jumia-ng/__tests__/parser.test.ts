@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { parseProductPage, parseSearchResults } from "@marketplaces/jumia-ng/parser";
 
 describe("jumia-ng parser", () => {
+  const nativeDomParser = globalThis.DOMParser;
+
+  afterEach(() => {
+    globalThis.DOMParser = nativeDomParser;
+  });
+
   it("extracts a product page with full specs", () => {
     const html = `
       <html><head>
@@ -62,6 +68,25 @@ describe("jumia-ng parser", () => {
       url: "https://www.jumia.com.ng/samsung-tv.html",
       price: { amount: 132000, currency: "NGN", raw: "₦132,000" },
       reviewCount: 62
+    });
+  });
+
+  it("parses search results when native DOMParser is unavailable in a service worker", () => {
+    globalThis.DOMParser = undefined as unknown as typeof DOMParser;
+
+    const html = `
+      <article class="prd">
+        <a class="core" href="/folding-phone-stand.html">
+          <h3 class="name">Folding Phone Stand</h3>
+          <div class="prc">₦2,500</div>
+        </a>
+      </article>`;
+
+    const results = parseSearchResults(html, "https://www.jumia.com.ng/catalog/?q=phone+stand");
+
+    expect(results[0]).toMatchObject({
+      title: "Folding Phone Stand",
+      price: { amount: 2500, currency: "NGN", raw: "₦2,500" }
     });
   });
 });

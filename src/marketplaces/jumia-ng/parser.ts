@@ -1,5 +1,6 @@
 import { parseMoney } from "@core/parsers/price";
 import type { Dimensions, ProductSnapshot } from "@core/types";
+import { DOMParser as LinkeDOMParser } from "linkedom";
 
 export function parseProductPage(html: string, url: string): ProductSnapshot {
   const doc = parseHtml(html);
@@ -63,7 +64,8 @@ export function parseSearchResults(html: string, requestUrl: string): ProductSna
 }
 
 function parseHtml(html: string): Document {
-  return new DOMParser().parseFromString(html, "text/html");
+  const Parser = globalThis.DOMParser ?? LinkeDOMParser;
+  return new Parser().parseFromString(html, "text/html") as unknown as Document;
 }
 
 function extractLdProduct(doc: Document): {
