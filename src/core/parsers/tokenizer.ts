@@ -13,14 +13,27 @@ const NOISE = new Set([
   "shipping"
 ]);
 
+const NORMALIZE_TOKEN: Record<string, string> = {
+  cell: "phone",
+  mobile: "phone",
+  cellphone: "phone",
+  rotating: "rotatable",
+  rotate: "rotatable",
+  folding: "foldable",
+  bracket: "holder"
+};
+
 export function tokenizeTitle(title: string): string[] {
   return title
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase()
+    .replace(/(rotatable)(phone)/g, "$1 $2")
+    .replace(/(holder)(retractable)/g, "$1 $2")
     .replace(/(\d+)\s*-\s*(inch|inches|cm|mm|kg|gb|tb|l)\b/g, "$1$2")
     .replace(/(\d+)\s+(inch|inches|cm|mm|kg|gb|tb|l)\b/g, "$1$2")
     .replace(/[^a-z0-9]+/g, " ")
     .split(/\s+/)
-    .map((token) => token.trim())
+    .map((token) => NORMALIZE_TOKEN[token.trim()] ?? token.trim())
     .filter((token) => token.length > 1 && !NOISE.has(token));
 }
 

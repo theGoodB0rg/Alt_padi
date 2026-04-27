@@ -14,7 +14,7 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
   const seller = matchText(text, /seller:\s*([^\n\r|]+)/i);
   const price =
     parseMoney(structured.price) ??
-    parseMoney(textFrom(doc, ".-b.-ltr.-tal.-fs24, .prc, [data-price]"));
+    parseMoney(textFrom(doc, "[data-price='true'], [data-price], .-b.-ubpt.-tal.-fs24, .prc"));
 
   return {
     title: clean(title),
@@ -22,7 +22,7 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
     imageUrl: structured.image,
     price,
     brand: brand ? clean(brand) : undefined,
-    categoryPath: [...doc.querySelectorAll(".brcbs a, nav a")]
+    categoryPath: [...doc.querySelectorAll(".brcbs a")]
       .map((node) => clean(node.textContent ?? ""))
       .filter(Boolean),
     rating: structured.rating,
@@ -36,22 +36,25 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
 
 export function parseSearchResults(html: string, requestUrl: string): ProductSnapshot[] {
   const doc = parseHtml(html);
-  return [...doc.querySelectorAll("article, .prd")]
+  return [...doc.querySelectorAll("article.prd, article.c-prd")]
     .map<ProductSnapshot | undefined>((card) => {
-      const link = card.querySelector<HTMLAnchorElement>("a[href*='.html'], a[href^='/']");
-      const title = textFrom(card, ".name, h3, h2") ?? link?.textContent;
+      const link = card.querySelector<HTMLAnchorElement>("a.core[href*='.html'], a[href*='.html']:not(.btn):not([rel='nofollow'])");
+      const title = textFrom(card, ".name") ?? link?.querySelector("img")?.getAttribute("alt");
       if (!link || !title) return undefined;
       const href = new URL(link.getAttribute("href") ?? "", requestUrl).toString();
-      const reviewText = textFrom(card, ".rev, .stars") ?? "";
+      const reviewText = textFrom(card, ".rev") ?? "";
       return {
         title: clean(title),
         url: href,
         imageUrl:
-          card.querySelector<HTMLImageElement>("img")?.dataset.src ??
-          card.querySelector<HTMLImageElement>("img")?.src,
-        price: parseMoney(textFrom(card, ".prc, [data-price]")),
+          card.querySelector<HTMLImageElement>("a.core img")?.dataset.src ??
+          card.querySelector<HTMLImageElement>("a.core img")?.src,
+        price: parseMoney(textFrom(card, "a.core .prc, a.core [data-price], .prc, [data-price]")),
         categoryPath: [],
-        reviewCount: parseIntOrUndefined(reviewText.match(/(\d+)\s+reviews?/i)?.[1]),
+        rating: numberOrUndefined(reviewText.match(/([0-9.]+)\s+out of 5/i)?.[1]),
+        reviewCount: parseIntOrUndefined(
+          reviewText.match(/\((\d+)\)/)?.[1] ?? reviewText.match(/(\d+)\s+reviews?/i)?.[1]
+        ),
         specs: {},
         source: "search"
       } satisfies ProductSnapshot;
@@ -74,12 +77,12 @@ function extractLdProduct(doc: Document): {
   for (const script of doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]')) {
     try {
       const data = JSON.parse(script.textContent ?? "{}");
-      const product = Array.isArray(data) ? data.find((item) => item["@type"] === "Product") : data;
-      if (product?.["@type"] !== "Product") continue;
+      const product = findStructuredProduct(data);
+      if (!product) continue;
       return {
         name: product.name,
         brand: typeof product.brand === "string" ? product.brand : product.brand?.name,
-        image: Array.isArray(product.image) ? product.image[0] : product.image,
+        image: extractStructuredImage(product.image),
         price: product.offers?.price,
         rating: numberOrUndefined(product.aggregateRating?.ratingValue),
         reviewCount: parseIntOrUndefined(product.aggregateRating?.reviewCount)
@@ -89,6 +92,36 @@ function extractLdProduct(doc: Document): {
     }
   }
   return {};
+}
+
+type StructuredProduct = {
+  ["@type"]?: string;
+  ["@graph"]?: unknown[];
+  name?: string;
+  brand?: string | { name?: string };
+  image?: unknown;
+  offers?: { price?: string };
+  aggregateRating?: { ratingValue?: unknown; reviewCount?: unknown };
+};
+
+function findStructuredProduct(data: unknown): StructuredProduct | undefined {
+  if (Array.isArray(data)) return data.map(findStructuredProduct).find(Boolean);
+  if (!data || typeof data !== "object") return undefined;
+  const value = data as StructuredProduct;
+  if (value["@type"] === "Product") return value;
+  if (Array.isArray(value["@graph"])) return value["@graph"].find((item): item is StructuredProduct => Boolean(item && typeof item === "object" && (item as StructuredProduct)["@type"] === "Product"));
+  return undefined;
+}
+
+function extractStructuredImage(image: unknown): string | undefined {
+  if (typeof image === "string") return image;
+  if (Array.isArray(image)) return typeof image[0] === "string" ? image[0] : extractStructuredImage(image[0]);
+  if (image && typeof image === "object") {
+    const value = image as { contentUrl?: string | string[]; url?: string | string[] };
+    const url = value.contentUrl ?? value.url;
+    return Array.isArray(url) ? url[0] : url;
+  }
+  return undefined;
 }
 
 function extractSpecs(doc: Document): Record<string, string> {

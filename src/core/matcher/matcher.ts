@@ -2,6 +2,10 @@ import type { CandidateScore, ProductSnapshot } from "@core/types";
 import { similarity } from "@core/parsers/tokenizer";
 import { SCORE_WEIGHTS } from "@core/matcher/weights";
 
+const COMPARABLE_SPEC_KEY_PATTERN = /^(model|model number|size|screen size|display|capacity|weight|weight \(kg\)|color|colour|material|dimensions?|width|height|depth)$/i;
+const NOISY_SPEC_KEYS = new Set(["shipping speed", "quality score", "customer rating", "cancellation rate", "sku"]);
+const PLACEHOLDER_VALUES = new Set(["....", "...", "n/a", "na", "none", "-"]);
+
 export function scoreCandidates(
   source: ProductSnapshot,
   candidates: ProductSnapshot[]
@@ -39,8 +43,8 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
 
   const titleScore = similarity(source.title, product.title);
   total += titleScore * SCORE_WEIGHTS.titleSimilarity;
-  if (titleScore >= 0.45) reasons.push("similar title");
-  if (titleScore < 0.25) warnings.push("weak title match");
+  if (titleScore >= 0.25) reasons.push("similar title");
+  if (titleScore < 0.18) warnings.push("weak title match");
 
   const categoryScore = categorySimilarity(source.categoryPath, product.categoryPath);
   total += categoryScore * SCORE_WEIGHTS.categorySimilarity;
@@ -49,10 +53,11 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
     warnings.push("different category");
   }
 
-  const specScore = specOverlap(source, product);
+  const comparableSpecs = comparableSpecEntries(source);
+  const specScore = specOverlap(comparableSpecs, product);
   total += specScore * SCORE_WEIGHTS.specOverlap;
   if (specScore >= 0.5) reasons.push("similar specs");
-  if (Object.keys(source.specs).length && Object.keys(product.specs).length === 0) {
+  if (comparableSpecs.length >= 2 && Object.keys(product.specs).length === 0) {
     total -= SCORE_WEIGHTS.missingDataPenalty;
     warnings.push("missing comparable specs");
   }
@@ -79,7 +84,7 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   return {
     product,
     totalScore: rounded,
-    confidence: rounded >= 58 ? "high" : rounded >= 34 ? "medium" : "low",
+    confidence: rounded >= 58 ? "high" : rounded >= 22 ? "medium" : "low",
     reasons: [...new Set(reasons)],
     warnings: [...new Set(warnings)],
     priceDelta,
@@ -95,8 +100,19 @@ function categorySimilarity(source: string[], candidate: string[]): number {
   return matches / Math.max(a.length, b.length);
 }
 
-function specOverlap(source: ProductSnapshot, candidate: ProductSnapshot): number {
-  const sourceEntries = Object.entries(source.specs);
+function comparableSpecEntries(source: ProductSnapshot): Array<[string, string]> {
+  return Object.entries(source.specs).filter(([key, value]) => {
+    const normalizedKey = key.toLowerCase();
+    const normalizedValue = value.trim().toLowerCase();
+    return (
+      COMPARABLE_SPEC_KEY_PATTERN.test(normalizedKey) &&
+      !NOISY_SPEC_KEYS.has(normalizedKey) &&
+      !PLACEHOLDER_VALUES.has(normalizedValue)
+    );
+  });
+}
+
+function specOverlap(sourceEntries: Array<[string, string]>, candidate: ProductSnapshot): number {
   if (!sourceEntries.length) return 0;
   let matched = 0;
   for (const [key, value] of sourceEntries) {
