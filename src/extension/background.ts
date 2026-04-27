@@ -1,6 +1,5 @@
 import { runAlternativeSearch } from "@core/search-runner";
-import type { ProductSnapshot } from "@core/types";
-import { isMissingContentScriptError } from "@extension/contentScriptRecovery";
+import { fetchCurrentProductFromUrl } from "@extension/currentProduct";
 import type { ExtensionRequest, ExtensionResponse } from "@extension/messages";
 import { jumiaNgAdapter } from "@marketplaces/jumia-ng/adapter";
 
@@ -34,34 +33,12 @@ async function handleSearch() {
     throw new Error("Open a Jumia Nigeria product page before searching.");
   }
 
-  const extracted = await extractCurrentProduct(tab.id);
-  if (!extracted.ok || !("product" in extracted)) {
-    throw new Error(extracted.ok ? "Product extraction failed." : extracted.error);
-  }
+  const product = await fetchCurrentProductFromUrl(tab.url, jumiaNgAdapter, fetchTextWithCache);
 
-  return runAlternativeSearch(extracted.product as ProductSnapshot, jumiaNgAdapter, {
+  return runAlternativeSearch(product, jumiaNgAdapter, {
     ...LIMITS,
     fetchText: fetchTextWithCache
   });
-}
-
-async function extractCurrentProduct(tabId: number): Promise<ExtensionResponse> {
-  try {
-    return await chrome.tabs.sendMessage<ExtensionRequest, ExtensionResponse>(tabId, {
-      type: "EXTRACT_CURRENT_PRODUCT"
-    });
-  } catch (error) {
-    if (!isMissingContentScriptError(error)) throw error;
-
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["assets/content.js"]
-    });
-
-    return chrome.tabs.sendMessage<ExtensionRequest, ExtensionResponse>(tabId, {
-      type: "EXTRACT_CURRENT_PRODUCT"
-    });
-  }
 }
 
 async function fetchTextWithCache(url: string): Promise<string> {
@@ -75,8 +52,9 @@ async function fetchTextWithCache(url: string): Promise<string> {
   try {
     const response = await fetch(url, {
       signal: controller.signal,
+      credentials: "include",
       headers: {
-        "User-Agent": "JumiaAlternativesExtension/0.1 user-triggered comparison"
+        Accept: "text/html,application/xhtml+xml"
       }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
