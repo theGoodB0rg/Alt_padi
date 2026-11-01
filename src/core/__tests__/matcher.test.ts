@@ -64,7 +64,9 @@ describe("scoreCandidates", () => {
       }
     ]);
 
-    expect(score.confidence).toBe("medium");
+    // Same model, so it is still the same item - but the penalties must surface as warnings.
+    expect(score.match).toBe("same-item");
+    expect(score.totalScore).toBeLessThan(100);
     expect(score.warnings).toEqual(
       expect.arrayContaining(["missing comparable specs", "weak review signal"])
     );

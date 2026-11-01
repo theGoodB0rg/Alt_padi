@@ -48,13 +48,8 @@ describe("accessory matching", () => {
     ]);
 
     expect(scores[0].product.url).toContain("telescopic");
-    expect(scores[0].reasons).toContain("matches functional features");
-    expect(scores[1].warnings).toEqual(
-      expect.arrayContaining([
-        "missing height-adjustable signal",
-        "missing retractable/telescopic signal",
-        "missing weighted-base signal"
-      ])
-    );
+    expect(scores[0].reasons).toContain("matches described features");
+    // No feature list: the gap is read from the source listing's own words.
+    expect(scores[1].warnings.find((w) => w.startsWith("doesn't mention"))).toContain("retractable");
   });
 });

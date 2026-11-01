@@ -8,10 +8,15 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
   const text = doc.body.textContent ?? "";
   const specs = extractSpecs(doc);
   const title = structured.name ?? textFrom(doc, "h1, .-fs20, [data-product-name]") ?? "Unknown product";
+  const tracking = doc.querySelector<HTMLElement>("[data-ga4-item_brand]");
   const brand =
     structured.brand ??
+    tracking?.getAttribute("data-ga4-item_brand") ??
     matchText(text, /brand:\s*([^\n\r|]+)/i) ??
     textFrom(doc, "[data-brand]");
+  const crumbs = [...doc.querySelectorAll<HTMLAnchorElement>(".brcbs a")]
+    .map((node) => ({ name: clean(node.textContent ?? ""), slug: slugFromHref(node.getAttribute("href")) }))
+    .filter((crumb) => crumb.name && crumb.name.toLowerCase() !== "home");
   const seller = matchText(text, /seller:\s*([^\n\r|]+)/i);
   const price =
     parseMoney(structured.price) ??
@@ -23,9 +28,8 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
     imageUrl: structured.image,
     price,
     brand: brand ? clean(brand) : undefined,
-    categoryPath: [...doc.querySelectorAll(".brcbs a")]
-      .map((node) => clean(node.textContent ?? ""))
-      .filter(Boolean),
+    categoryPath: crumbs.length ? crumbs.map((crumb) => crumb.name) : trackingCategories(tracking),
+    categorySlugs: crumbs.length && crumbs.every((crumb) => crumb.slug) ? crumbs.map((crumb) => crumb.slug!) : undefined,
     rating: structured.rating,
     reviewCount: structured.reviewCount,
     seller: seller ? clean(seller) : undefined,
@@ -44,6 +48,10 @@ export function parseSearchResults(html: string, requestUrl: string): ProductSna
       if (!link || !title) return undefined;
       const href = new URL(link.getAttribute("href") ?? "", requestUrl).toString();
       const reviewText = textFrom(card, ".rev") ?? "";
+      // Jumia tags every card with its own category trail and brand: the most reliable
+      // signal of what a listing actually is, for any kind of product.
+      const tracked = card.querySelector<HTMLElement>("a.core[data-gtm-category], [data-gtm-category]");
+      const cardBrand = tracked?.getAttribute("data-gtm-brand") ?? card.querySelector("[data-ga4-item_brand]")?.getAttribute("data-ga4-item_brand");
       return {
         title: clean(title),
         url: href,
@@ -51,7 +59,11 @@ export function parseSearchResults(html: string, requestUrl: string): ProductSna
           card.querySelector<HTMLImageElement>("a.core img")?.dataset.src ??
           card.querySelector<HTMLImageElement>("a.core img")?.src,
         price: parseMoney(textFrom(card, "a.core .prc, a.core [data-price], .prc, [data-price]")),
-        categoryPath: [],
+        brand: cardBrand ? clean(cardBrand) : undefined,
+        categoryPath: (tracked?.getAttribute("data-gtm-category") ?? "")
+          .split("/")
+          .map(clean)
+          .filter(Boolean),
         rating: numberOrUndefined(reviewText.match(/([0-9.]+)\s+out of 5/i)?.[1]),
         reviewCount: parseIntOrUndefined(
           reviewText.match(/\((\d+)\)/)?.[1] ?? reviewText.match(/(\d+)\s+reviews?/i)?.[1]
@@ -61,6 +73,21 @@ export function parseSearchResults(html: string, requestUrl: string): ProductSna
       } satisfies ProductSnapshot;
     })
     .filter((product): product is ProductSnapshot => Boolean(product));
+}
+
+function slugFromHref(href: string | null): string | undefined {
+  if (!href) return undefined;
+  const path = href.replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "");
+  const slug = path.split("/").filter(Boolean).at(-1);
+  return slug && !slug.endsWith(".html") ? slug : undefined;
+}
+
+function trackingCategories(node: Element | null): string[] {
+  if (!node) return [];
+  return ["data-ga4-item_category", "data-ga4-item_category2", "data-ga4-item_category3", "data-ga4-item_category4", "data-ga4-item_category5"]
+    .map((name) => node.getAttribute(name))
+    .filter((value): value is string => Boolean(value))
+    .map(clean);
 }
 
 function parseHtml(html: string): Document {

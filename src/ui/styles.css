@@ -251,3 +251,75 @@ h2 {
   font-weight: 700;
   text-decoration: none;
 }
+
+.verdict {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d9ded7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.verdict div {
+  display: grid;
+  gap: 4px;
+}
+
+.verdict span {
+  color: #52605a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.verdict.save {
+  border-color: #9fd3bd;
+  background: #eaf7f0;
+  color: #0d5f44;
+}
+
+.verdict.ok {
+  color: #214036;
+}
+
+.verdict a {
+  color: #135dca;
+  font-weight: 700;
+}
+
+.group {
+  margin-top: 18px;
+}
+
+.group h3,
+.group summary {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.group summary {
+  cursor: pointer;
+}
+
+.group small {
+  display: block;
+  margin-top: 2px;
+  color: #52605a;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.group .results {
+  margin-top: 10px;
+}
+
+.count {
+  margin-left: 4px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: #214036;
+  background: #e7f2ed;
+  font-size: 11px;
+}

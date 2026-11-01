@@ -4,9 +4,9 @@ import type { ExtensionRequest, ExtensionResponse } from "@extension/messages";
 import { jumiaNgAdapter } from "@marketplaces/jumia-ng/adapter";
 
 const LIMITS = {
-  maxQueries: 4,
-  maxSearchCandidates: 20,
-  maxDetailFetches: 8
+  maxQueries: 5,
+  maxSearchCandidates: 40,
+  maxDetailFetches: 10
 };
 
 chrome.runtime.onInstalled.addListener(() => {

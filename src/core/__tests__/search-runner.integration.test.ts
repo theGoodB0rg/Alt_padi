@@ -46,7 +46,8 @@ describe("runAlternativeSearch", () => {
             ]
           : [
               {
-                title: "Samsung TV Wall Bracket",
+                // Same model, but the card lacks specs/category, so details are fetched (and fail).
+                title: "Samsung 32-inch HD TV UA32T5300 Renewed",
                 url: "https://www.jumia.com.ng/b.html",
                 brand: "Samsung",
                 categoryPath: [],
@@ -88,8 +89,9 @@ describe("runAlternativeSearch", () => {
     expect(run.queries).toEqual(["Samsung UA32T5300", "Samsung TV"]);
     expect(run.candidates).toHaveLength(2);
     expect(run.candidates[0].product.url).toBe("https://www.jumia.com.ng/a.html");
+    expect(run.summary?.cheapestSameItem?.product.url).toBe("https://www.jumia.com.ng/a.html");
     expect(run.errors).toEqual(
-      expect.arrayContaining(["Samsung TV Wall Bracket: network unavailable"])
+      expect.arrayContaining(["Samsung 32-inch HD TV UA32T5300 Renewed: network unavailable"])
     );
   });
 });

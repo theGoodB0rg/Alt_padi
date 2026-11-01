@@ -13,28 +13,24 @@ const NOISE = new Set([
   "shipping"
 ]);
 
-const NORMALIZE_TOKEN: Record<string, string> = {
-  cell: "phone",
-  mobile: "phone",
-  cellphone: "phone",
-  rotating: "rotatable",
-  rotate: "rotatable",
-  folding: "foldable",
-  bracket: "holder"
-};
+/** Measurement units, glued to their number so "32 inch" and "32-inch" become one token. */
+const UNIT = "(?:inch|inches|cm|mm|m|kg|g|mg|l|ml|cl|ltr|litres?|gb|tb|mb|mah|w|v|hz|pcs|oz|lbs?)";
 
 export function tokenizeTitle(title: string): string[] {
   return title
+    // Casing that is not a word boundary: units ("5000mAh") and i-prefixed names ("iPhone").
+    .replace(/(\d)\s*(mAh|kWh|mWh)\b/g, (_m, d: string, unit: string) => `${d}${unit.toLowerCase()}`)
+    .replace(/\bi([A-Z][a-z]+)/g, (_m, rest: string) => `i${rest.toLowerCase()}`)
+    // Glued words from marketplace titles: "RotatablePhone HolderRetractable".
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase()
-    .replace(/(rotatable)(phone)/g, "$1 $2")
-    .replace(/(holder)(retractable)/g, "$1 $2")
-    .replace(/(\d+)\s*-\s*(inch|inches|cm|mm|kg|gb|tb|l)\b/g, "$1$2")
-    .replace(/(\d+)\s+(inch|inches|cm|mm|kg|gb|tb|l)\b/g, "$1$2")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*-?\\s*(${UNIT})\\b`, "g"), "$1$2")
+    // Keep decimals ("6.52", "1.5l") intact; everything else non-alphanumeric is a separator.
+    .replace(/[^a-z0-9.]+/g, " ")
+    .replace(/\.(?!\d)|(?<!\d)\./g, " ")
     .split(/\s+/)
-    .map((token) => NORMALIZE_TOKEN[token.trim()] ?? token.trim())
-    .filter((token) => token.length > 1 && !NOISE.has(token));
+    .map((token) => token.trim())
+    .filter((token) => (token.length > 1 || /\d/.test(token)) && !NOISE.has(token));
 }
 
 export function similarity(left: string, right: string): number {

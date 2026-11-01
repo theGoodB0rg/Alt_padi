@@ -1,45 +1,71 @@
-import type { CandidateScore, ProductSnapshot } from "@core/types";
+import type { CandidateScore, ProductSnapshot, RunSummary } from "@core/types";
+import { compareCategories, identifyProduct, relateProducts, stem } from "@core/matcher/product-identity";
+import { readQuantities, unitPrice } from "@core/parsers/quantity";
 import { similarity } from "@core/parsers/tokenizer";
 import { SCORE_WEIGHTS } from "@core/matcher/weights";
 
-const COMPARABLE_SPEC_KEY_PATTERN = /^(model|model number|size|screen size|display|capacity|weight|weight \(kg\)|color|colour|material|dimensions?|width|height|depth)$/i;
+const COMPARABLE_SPEC_KEY_PATTERN = /^(model|model number|size|screen size|display|capacity|weight|weight \(kg\)|color|colour|material|dimensions?|width|height|depth|volume|flavou?r|pack size)$/i;
 const NOISY_SPEC_KEYS = new Set(["shipping speed", "quality score", "customer rating", "cancellation rate", "sku"]);
 const PLACEHOLDER_VALUES = new Set(["....", "...", "n/a", "na", "none", "-"]);
-const FUNCTIONAL_FEATURES = [
-  {
-    id: "height-adjustable",
-    label: "height-adjustable",
-    pattern: /\b(height adjustable|adjustable height|height can be|adjusted between|raise|lower|up and down)\b/i
-  },
-  {
-    id: "retractable",
-    label: "retractable/telescopic",
-    pattern: /\b(retractable|telescopic|extendable|adjustable length|length is adjustable)\b/i
-  },
-  {
-    id: "rotatable",
-    label: "rotatable/swivel",
-    pattern: /\b(rotatable|rotating|rotate|swivel|360|180|angle adjustable|adjustable angle)\b/i
-  },
-  {
-    id: "weighted-base",
-    label: "weighted-base",
-    pattern: /\b(weighted base|disc base|weighing disc|heavy base|stable base|stability)\b/i
-  },
-  {
-    id: "clamp-holder",
-    label: "clamp/holder",
-    pattern: /\b(clamp|clip|spring|holder|phone holder)\b/i
-  }
-] as const;
 
-export function scoreCandidates(
-  source: ProductSnapshot,
-  candidates: ProductSnapshot[]
-): CandidateScore[] {
-  return candidates
-    .map((candidate) => scoreCandidate(source, candidate))
-    .sort((a, b) => b.totalScore - a.totalScore);
+/** A same-item listing below this fraction of the typical price is treated as suspect. */
+const SUSPICIOUS_PRICE_RATIO = 0.4;
+
+export function scoreCandidates(source: ProductSnapshot, candidates: ProductSnapshot[]): CandidateScore[] {
+  const scored = candidates.map((candidate) => scoreCandidate(source, candidate));
+  flagImplausiblePrices(source, scored);
+  return scored.sort((a, b) => b.totalScore - a.totalScore);
+}
+
+export function summarizeCandidates(source: ProductSnapshot, scores: CandidateScore[]): RunSummary {
+  const exact = scores
+    .filter((score) => score.match === "same-item" && !score.suspicious && score.product.price)
+    .sort((a, b) => a.product.price!.amount - b.product.price!.amount);
+  const prices = exact.map((score) => score.product.price!.amount);
+  const cheapest = exact[0];
+  return {
+    sameItemCount: exact.length,
+    cheapestSameItem: cheapest,
+    sourceIsCheapest: !cheapest || !source.price || cheapest.product.price!.amount >= source.price.amount,
+    sameItemPriceRange: prices.length
+      ? { min: prices[0], median: prices[Math.floor(prices.length / 2)], max: prices[prices.length - 1] }
+      : undefined,
+    suspiciousCount: scores.filter((score) => score.suspicious).length
+  };
+}
+
+/**
+ * Market-relative sanity check, valid for any category: the same item does not sell for a
+ * fraction of what everyone else charges. Such listings are usually a part, an accessory
+ * mis-filed under the item, a "deposit" price, or bait.
+ */
+function flagImplausiblePrices(source: ProductSnapshot, scores: CandidateScore[]): void {
+  const references = [
+    source.price?.amount,
+    ...scores.filter((s) => s.match === "same-item").map((s) => s.product.price?.amount)
+  ].filter((value): value is number => value !== undefined && value > 0);
+  if (!references.length) return;
+  const typical = median(references);
+  const sourceUnit = source.price ? unitPrice(source.price.amount, readQuantities(sourceText(source))) : undefined;
+
+  for (const score of scores) {
+    if (score.match !== "same-item" && score.match !== "variant") continue;
+    const price = score.product.price?.amount;
+    if (!price) continue;
+    let implausible: boolean;
+    if (sourceUnit && score.unitPrice && sourceUnit.unit === score.unitPrice.unit) {
+      implausible = score.unitPrice.amount < sourceUnit.amount * SUSPICIOUS_PRICE_RATIO;
+    } else if (score.match === "variant") {
+      continue; // different size with no readable quantity: price gap is expected
+    } else {
+      implausible = price < typical * SUSPICIOUS_PRICE_RATIO;
+    }
+    if (!implausible) continue;
+    score.suspicious = true;
+    score.confidence = "low";
+    score.totalScore = Math.min(score.totalScore, 20);
+    score.warnings.push("suspiciously cheap for this item - check it is the real thing");
+  }
 }
 
 function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): CandidateScore {
@@ -47,14 +73,34 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   const warnings: string[] = [];
   let total = 0;
 
-  const priceDelta =
-    source.price && product.price ? source.price.amount - product.price.amount : undefined;
+  const relation = relateProducts(source, product);
+  const match = relation.match;
+  if (relation.reason) reasons.push(relation.reason);
+  if (relation.warning) warnings.push(relation.warning);
+  if (match === "same-item") total += 30;
+  else if (match === "variant") total += 12;
+
+  const priceDelta = source.price && product.price ? source.price.amount - product.price.amount : undefined;
   const priceDeltaPercent =
     priceDelta !== undefined && source.price ? (priceDelta / source.price.amount) * 100 : undefined;
-  if (priceDelta !== undefined && priceDelta > 0) {
+
+  // Price per kg / litre / piece makes different pack sizes comparable (groceries, toiletries...).
+  const candidateUnit = product.price ? unitPrice(product.price.amount, readQuantities(sourceText(product))) : undefined;
+  const sourceUnit = source.price ? unitPrice(source.price.amount, readQuantities(sourceText(source))) : undefined;
+  const comparableUnits = candidateUnit && sourceUnit && candidateUnit.unit === sourceUnit.unit;
+
+  if (match === "variant" && comparableUnits) {
+    const unitDelta = ((sourceUnit.amount - candidateUnit.amount) / sourceUnit.amount) * 100;
+    if (unitDelta > 0) {
+      total += Math.min(SCORE_WEIGHTS.priceImprovement, Math.max(4, unitDelta));
+      reasons.push(`cheaper per ${candidateUnit.unit}`);
+    } else {
+      warnings.push(`dearer per ${candidateUnit.unit}`);
+    }
+  } else if (match !== "accessory" && priceDelta !== undefined && priceDelta > 0) {
     total += Math.min(SCORE_WEIGHTS.priceImprovement, Math.max(4, priceDeltaPercent ?? 0));
     reasons.push("cheaper price");
-  } else if (priceDelta !== undefined) {
+  } else if (match !== "accessory" && priceDelta !== undefined) {
     warnings.push("not cheaper");
   }
 
@@ -73,12 +119,10 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   if (titleScore >= 0.25) reasons.push("similar title");
   if (titleScore < 0.18) warnings.push("weak title match");
 
-  const categoryScore = categorySimilarity(source.categoryPath, product.categoryPath);
+  const categoryRelation = compareCategories(source.categoryPath, product.categoryPath);
+  const categoryScore = categoryRelation === "same" ? 1 : categoryRelation === "sibling" ? 0.6 : 0;
   total += categoryScore * SCORE_WEIGHTS.categorySimilarity;
-  if (categoryScore >= 0.5) reasons.push("similar category");
-  if (categoryScore === 0 && source.categoryPath.length && product.categoryPath.length) {
-    warnings.push("different category");
-  }
+  if (categoryScore >= 0.5) reasons.push("same category");
 
   const comparableSpecs = comparableSpecEntries(source);
   const specScore = specOverlap(comparableSpecs, product);
@@ -89,11 +133,10 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
     warnings.push("missing comparable specs");
   }
 
-  const featureResult = functionalFeatureScore(source, product);
-  total += featureResult.score * SCORE_WEIGHTS.functionalFeatureMatch;
-  total -= featureResult.missingRequiredCount * 8;
-  if (featureResult.score >= 0.65) reasons.push("matches functional features");
-  for (const warning of featureResult.warnings) warnings.push(warning);
+  const coverage = descriptorCoverage(source, product);
+  total += coverage.score * SCORE_WEIGHTS.descriptorCoverage;
+  if (coverage.score >= 0.65) reasons.push("matches described features");
+  else if (coverage.missing.length) warnings.push(`doesn't mention: ${coverage.missing.slice(0, 4).join(", ")}`);
 
   const dimensionScore = dimensionsCompatibility(source, product);
   total += dimensionScore * SCORE_WEIGHTS.dimensionsCompatibility;
@@ -113,24 +156,52 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
     reasons.push("official-store signal");
   }
 
+  // Accessories and unrelated products can share every keyword with the item and still not be it.
+  if (match === "accessory") total = Math.min(total, 15);
+  if (match === "unrelated") total = Math.min(total, 10);
+
   const rounded = Math.max(0, Math.round(total));
+  const lowOnly = match === "accessory" || match === "unrelated";
   return {
     product,
+    match,
     totalScore: rounded,
-    confidence: rounded >= 58 ? "high" : rounded >= 22 ? "medium" : "low",
+    confidence: lowOnly ? "low" : rounded >= 58 ? "high" : rounded >= 22 ? "medium" : "low",
     reasons: [...new Set(reasons)],
     warnings: [...new Set(warnings)],
     priceDelta,
-    priceDeltaPercent
+    priceDeltaPercent,
+    // Only meaningful next to the viewed item's own per-unit price (a phone has no price per kg).
+    unitPrice: comparableUnits ? candidateUnit : undefined
   };
 }
 
-function categorySimilarity(source: string[], candidate: string[]): number {
-  const a = source.map((part) => part.toLowerCase());
-  const b = candidate.map((part) => part.toLowerCase());
-  if (!a.length || !b.length) return 0;
-  const matches = a.filter((part) => b.includes(part)).length;
-  return matches / Math.max(a.length, b.length);
+function sourceText(product: ProductSnapshot): string {
+  return `${product.title} ${Object.values(product.specs).join(" ")}`;
+}
+
+/**
+ * How much of what the source says about itself ("height adjustable", "parboiled", "waterproof",
+ * "long sleeve") the candidate also says. Works on whatever words the listing uses: no feature list.
+ */
+function descriptorCoverage(source: ProductSnapshot, candidate: ProductSnapshot): { score: number; missing: string[] } {
+  const wanted = identifyProduct(source).descriptors.filter((word) => word.length > 2);
+  if (wanted.length < 2) return { score: 0, missing: [] };
+  const haystack = new Set(
+    [candidate.title, candidate.brand, candidate.categoryPath.join(" "), ...Object.entries(candidate.specs).flat()]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map(stem)
+  );
+  const missing = wanted.filter((word) => !haystack.has(stem(word)));
+  return { score: (wanted.length - missing.length) / wanted.length, missing };
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 function comparableSpecEntries(source: ProductSnapshot): Array<[string, string]> {
@@ -153,41 +224,6 @@ function specOverlap(sourceEntries: Array<[string, string]>, candidate: ProductS
     if (candidateValue && normalize(value) === normalize(candidateValue)) matched += 1;
   }
   return matched / sourceEntries.length;
-}
-
-function functionalFeatureScore(
-  source: ProductSnapshot,
-  candidate: ProductSnapshot
-): { score: number; missingRequiredCount: number; warnings: string[] } {
-  const required = extractFunctionalFeatures(source);
-  if (!required.length) return { score: 0, missingRequiredCount: 0, warnings: [] };
-
-  const matched = extractFunctionalFeatures(candidate);
-  const matchedIds = new Set(matched.map((feature) => feature.id));
-  const matchedRequired = required.filter((feature) => matchedIds.has(feature.id));
-  const missingRequired = required.filter((feature) => !matchedIds.has(feature.id));
-
-  return {
-    score: matchedRequired.length / required.length,
-    missingRequiredCount: missingRequired.length,
-    warnings: missingRequired
-      .filter((feature) => feature.id !== "clamp-holder")
-      .map((feature) => `missing ${feature.label} signal`)
-  };
-}
-
-function extractFunctionalFeatures(product: ProductSnapshot): Array<(typeof FUNCTIONAL_FEATURES)[number]> {
-  const haystack = [
-    product.title,
-    product.brand,
-    product.seller,
-    product.categoryPath.join(" "),
-    ...Object.entries(product.specs).flatMap(([key, value]) => [key, value])
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return FUNCTIONAL_FEATURES.filter((feature) => feature.pattern.test(haystack));
 }
 
 function dimensionsCompatibility(source: ProductSnapshot, candidate: ProductSnapshot): number {

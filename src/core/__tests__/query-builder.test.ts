@@ -13,11 +13,10 @@ describe("buildSearchQueries", () => {
       source: "page"
     };
 
-    expect(buildSearchQueries(product)).toEqual([
-      "Samsung UA32T5300",
-      "Samsung 32 inch television",
-      "UA32T5300 32inch hd tv",
-      "Samsung 32inch hd tv"
-    ]);
+    const queries = buildSearchQueries(product);
+    expect(queries[0]).toBe("Samsung UA32T5300");
+    expect(queries).toContain("Samsung UA32T5300 32inch 2gb");
+    expect(queries.length).toBeLessThanOrEqual(4);
+    expect(queries.join(" ")).not.toMatch(/official|store|black/i);
   });
 });

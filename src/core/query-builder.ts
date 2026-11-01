@@ -1,67 +1,59 @@
+import { headNounPhrase, identifyProduct, isUnbranded, modelPhrase } from "@core/matcher/product-identity";
+import { readQuantities } from "@core/parsers/quantity";
 import { tokenizeTitle } from "@core/parsers/tokenizer";
-import type { ProductSnapshot } from "@core/types";
+import type { ProductSnapshot, SearchIntent } from "@core/types";
 
-const PRODUCT_TERMS = ["tv", "television", "phone", "laptop", "blender", "shoe", "watch"];
 const PLACEHOLDER_VALUES = new Set(["....", "...", "n/a", "na", "none", "-"]);
 
+/**
+ * Plan searches from the item's own identity, for any kind of product:
+ * 1. the item by name, inside its own category  -> other sellers of the same thing, no accessories
+ * 2. the item by name + size/capacity            -> the exact configuration
+ * 3. the item by name, whole store               -> mis-filed listings and related add-ons
+ * 4. what the item is, inside its category       -> reasonable alternatives from other brands/models
+ */
+export function buildSearchIntents(product: ProductSnapshot): SearchIntent[] {
+  const brand = product.brand && !isUnbranded(product.brand) ? product.brand.trim() : undefined;
+  const identity = identifyProduct(product);
+  const model = findSpecModel(product) ?? modelPhrase(product);
+  const descriptors = identity.descriptors.filter((word) => word !== brand?.toLowerCase());
+  const quantities = tokenizeTitle(product.title)
+    .filter((token) => /\d/.test(token) && Object.keys(readQuantities(token).specs).length > 0)
+    .slice(0, 2);
+
+  // Without a brand, the description has to carry the whole identity: use one more word.
+  const name = model ? join(brand, model) : join(brand, ...descriptors.slice(0, brand ? 2 : 3));
+  const what = headNounPhrase(product) || product.categoryPath.at(-1) || name;
+
+  const intents: SearchIntent[] = [
+    { query: name, scope: "category" },
+    { query: join(name, ...quantities), scope: "category" },
+    // The brand inside the category catches the same product listed under different wording.
+    ...(brand && !model ? [{ query: brand, scope: "category" as const }] : []),
+    { query: name, scope: "all" },
+    { query: what, scope: "category" }
+  ];
+
+  const seen = new Set<string>();
+  return intents.filter((intent) => {
+    const key = `${intent.scope}:${intent.query.toLowerCase()}`;
+    if (!intent.query || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Query strings only, for display and tests. */
 export function buildSearchQueries(product: ProductSnapshot): string[] {
-  const brand = product.brand?.trim();
-  const model = findModel(product);
-  const size = findSpecValue(product, ["size", "screen size", "display", "capacity"]);
-  const tokens = tokenizeTitle(product.title);
-  const productTerm = inferProductTerm(tokens, product.categoryPath);
-
-  if (!brand && !model && productTerm === "phone" && tokens.includes("holder") && tokens.includes("stand")) {
-    return buildPhoneStandQueries(tokens);
-  }
-
-  const nonBrandTokens = tokens.filter((token) => token !== brand?.toLowerCase());
-  const nonModelTokens = nonBrandTokens.filter((token) => token !== model?.toLowerCase());
-  const queries = [
-    [brand, model].filter(Boolean).join(" "),
-    [brand, size, productTerm].filter(Boolean).join(" "),
-    [model, ...nonModelTokens.slice(0, 3)].filter(Boolean).join(" "),
-    [brand, ...tokens.filter((token) => token !== "official").slice(1, 4)].filter(Boolean).join(" ")
-  ];
-
-  return [...new Set(queries.map((query) => query.trim()).filter(Boolean))].slice(0, 4);
+  return [...new Set(buildSearchIntents(product).map((intent) => intent.query))];
 }
 
-function buildPhoneStandQueries(tokens: string[]): string[] {
-  const hasRotatable = tokens.includes("rotatable") || tokens.includes("rotating");
-  const hasRetractable = tokens.includes("retractable");
-  const queries = [
-    hasRotatable ? "rotatable phone holder stand" : "phone holder stand",
-    hasRetractable ? "phone holder retractable stand" : "phone stand holder",
-    "mobile phone holder stand",
-    "phone stand"
-  ];
-  return [...new Set(queries)];
+function join(...parts: Array<string | undefined>): string {
+  return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
 
-function findModel(product: ProductSnapshot): string | undefined {
-  const model = findSpecValue(product, ["model", "model number"]);
-  if (model && !isPlaceholder(model)) return model;
-  return tokenizeTitle(product.title).find((token) => /[a-z]+\d|\d+[a-z]+/i.test(token));
-}
-
-function findSpecValue(product: ProductSnapshot, keys: string[]): string | undefined {
-  const entries = Object.entries(product.specs);
-  const match = entries.find(([key]) => keys.includes(key.toLowerCase()));
-  const value = match?.[1]?.trim();
-  return value && !isPlaceholder(value) ? value : undefined;
-}
-
-function inferProductTerm(tokens: string[], categoryPath: string[]): string | undefined {
-  if (tokens.includes("tv")) return "television";
-  const fromTitle = PRODUCT_TERMS.find((term) => tokens.includes(term));
-  if (fromTitle) return fromTitle;
-  const category = categoryPath.at(-1)?.toLowerCase();
-  if (!category) return undefined;
-  if (category.includes("television")) return "television";
-  return category.replace(/[^a-z0-9]+/g, " ").split(/\s+/)[0];
-}
-
-function isPlaceholder(value: string): boolean {
-  return PLACEHOLDER_VALUES.has(value.trim().toLowerCase());
+function findSpecModel(product: ProductSnapshot): string | undefined {
+  const entry = Object.entries(product.specs).find(([key]) => ["model", "model number"].includes(key.toLowerCase()));
+  const value = entry?.[1]?.trim();
+  return value && !PLACEHOLDER_VALUES.has(value.toLowerCase()) ? value : undefined;
 }

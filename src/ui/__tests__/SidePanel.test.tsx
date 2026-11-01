@@ -29,6 +29,7 @@ const run: SearchRun = {
         specs: { model: "UA32T5300" },
         source: "search"
       },
+      match: "same-item",
       totalScore: 74,
       confidence: "high",
       reasons: ["cheaper price", "same brand"],
