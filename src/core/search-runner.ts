@@ -76,11 +76,13 @@ export async function runAlternativeSearch(
   };
 }
 
-/** The page being viewed can come back from its own search, sometimes under a tracking URL. */
+/**
+ * The page being viewed can come back from its own search. Only the URL identifies it: another
+ * seller's listing can carry the identical title and price, and that is exactly what the user
+ * wants to know about.
+ */
 function isSourceListing(source: ProductSnapshot, candidate: ProductSnapshot): boolean {
-  if (canonicalUrl(candidate.url) === canonicalUrl(source.url)) return true;
-  const sameTitle = candidate.title.trim().toLowerCase() === source.title.trim().toLowerCase();
-  return sameTitle && candidate.price?.amount === source.price?.amount;
+  return canonicalUrl(candidate.url) === canonicalUrl(source.url);
 }
 
 function canonicalUrl(url: string): string {

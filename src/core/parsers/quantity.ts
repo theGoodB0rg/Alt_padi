@@ -65,7 +65,11 @@ const MULTIPLIER = [
 ];
 
 export function readQuantities(text: string): QuantityInfo {
-  const lower = text.toLowerCase().replace(/(\d),(\d{3})/g, "$1$2");
+  const lower = text
+    .toLowerCase()
+    .replace(/(\d),(\d{3})/g, "$1$2")
+    // Glued unit + word ("8GBRAM", "50KGBAG"): split after the unit.
+    .replace(/(\d)(gb|tb|mb|kg|ml|cl|mah)(?=[a-z])/g, "$1$2 ");
   const specs: Record<string, number[]> = {};
   let mass = 0;
   let volume = 0;

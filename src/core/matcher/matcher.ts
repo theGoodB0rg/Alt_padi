@@ -30,7 +30,8 @@ export function summarizeCandidates(source: ProductSnapshot, scores: CandidateSc
     sameItemPriceRange: prices.length
       ? { min: prices[0], median: prices[Math.floor(prices.length / 2)], max: prices[prices.length - 1] }
       : undefined,
-    suspiciousCount: scores.filter((score) => score.suspicious).length
+    suspiciousCount: scores.filter((score) => score.suspicious).length,
+    samePriceCount: source.price ? prices.filter((price) => price === source.price!.amount).length : 0
   };
 }
 
@@ -100,6 +101,8 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   } else if (match !== "accessory" && priceDelta !== undefined && priceDelta > 0) {
     total += Math.min(SCORE_WEIGHTS.priceImprovement, Math.max(4, priceDeltaPercent ?? 0));
     reasons.push("cheaper price");
+  } else if (match !== "accessory" && priceDelta === 0) {
+    reasons.push("same price");
   } else if (match !== "accessory" && priceDelta !== undefined) {
     warnings.push("not cheaper");
   }
@@ -155,6 +158,16 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   } else if (product.rating !== undefined || product.reviewCount !== undefined) {
     total -= 3;
     warnings.push("weak review signal");
+  }
+
+  if (product.sellerScore !== undefined) {
+    if (product.sellerScore >= 70) {
+      total += SCORE_WEIGHTS.sellerTrust;
+      reasons.push(`trusted seller (${product.sellerScore}%)`);
+    } else if (product.sellerScore < 50) {
+      total -= SCORE_WEIGHTS.sellerTrust * 2;
+      warnings.push(`low seller score (${product.sellerScore}%)`);
+    }
   }
 
   if (product.seller?.toLowerCase().includes("official")) {

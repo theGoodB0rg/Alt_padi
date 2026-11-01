@@ -25,6 +25,8 @@ export interface ProductSnapshot {
   rating?: number;
   reviewCount?: number;
   seller?: string;
+  /** Marketplace seller score, 0-100, when the listing shows one. */
+  sellerScore?: number;
   specs: Record<string, string>;
   dimensions?: Dimensions;
   source: "page" | "search" | "detail";
@@ -78,6 +80,8 @@ export interface RunSummary {
   /** True when no exact listing undercuts the price the user is viewing. */
   sourceIsCheapest: boolean;
   sameItemPriceRange?: { min: number; median: number; max: number };
+  /** Exact-item listings at the same price as the one being viewed (other sellers). */
+  samePriceCount: number;
   /** Same-model listings priced so low they are probably accessories, parts or bait. */
   suspiciousCount: number;
 }

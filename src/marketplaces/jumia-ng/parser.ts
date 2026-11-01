@@ -17,7 +17,13 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
   const crumbs = [...doc.querySelectorAll<HTMLAnchorElement>(".brcbs a")]
     .map((node) => ({ name: clean(node.textContent ?? ""), slug: slugFromHref(node.getAttribute("href")) }))
     .filter((crumb) => crumb.name && crumb.name.toLowerCase() !== "home");
-  const seller = matchText(text, /seller:\s*([^\n\r|]+)/i);
+  // Product pages read "Seller Information <name> 72% Seller Score" (older pages: "Seller: <name>").
+  // textContent glues adjacent elements ("InformationValue Gadgets72%"), so split on tags instead.
+  const spacedText = clean(
+    (doc.body.innerHTML ?? "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'")
+  );
+  const sellerBlock = spacedText.match(/Seller Information\s+(.+?)\s+(\d{1,3})\s*%\s*Seller Score/i);
+  const seller = sellerBlock?.[1] ?? matchText(text, /seller:\s*([^\n\r|]+)/i);
   const price =
     parseMoney(structured.price) ??
     parseMoney(textFrom(doc, "[data-price='true'], [data-price], .-b.-ubpt.-tal.-fs24, .prc"));
@@ -33,6 +39,7 @@ export function parseProductPage(html: string, url: string): ProductSnapshot {
     rating: structured.rating,
     reviewCount: structured.reviewCount,
     seller: seller ? clean(seller) : undefined,
+    sellerScore: sellerBlock ? Number(sellerBlock[2]) : undefined,
     specs,
     dimensions: extractDimensions(`${text} ${Object.values(specs).join(" ")}`),
     source: "detail"

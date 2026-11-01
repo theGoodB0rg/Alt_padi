@@ -72,6 +72,18 @@ describe("phones: the original AGM Note N1 complaint", () => {
     expect(summary.sourceIsCheapest).toBe(false);
   });
 
+  it("counts another seller at the same price and prefers the better-rated seller", () => {
+    const viewed = { ...listing("Tecno Spark 20 Pro 8GB 256GB", 349999, CAT.phone, "Tecno"), sellerScore: 72 };
+    const scores = scoreCandidates(viewed, [
+      { ...listing("Tecno Spark 20 Pro 8GB 256GB", 349999, CAT.phone, "Tecno"), seller: "moore lingeries", sellerScore: 32 }
+    ]);
+    expect(scores[0].match).toBe("same-item");
+    expect(scores[0].warnings).toContain("low seller score (32%)");
+    const summary = summarizeCandidates(viewed, scores);
+    expect(summary.samePriceCount).toBe(1);
+    expect(summary.sourceIsCheapest).toBe(true);
+  });
+
   it("reports honestly when only accessories exist for the item", () => {
     const scores = scoreCandidates(phone, [
       listing("AGM NOTE N1 TPU CASE POUCH", 4607, CAT.phoneCase, "Generic"),

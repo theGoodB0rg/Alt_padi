@@ -33,7 +33,11 @@ export function SidePanel({ onFindAlternatives }: SidePanelProps) {
     return (run?.candidates ?? []).filter((candidate) => {
       if (candidate.match === "unrelated") return false;
       // Accessories are suggestions: cheaper-than-a-phone is meaningless for a pouch.
-      if (cheaperOnly && candidate.match !== "accessory" && (candidate.priceDelta ?? 0) <= 0) return false;
+      if (cheaperOnly && candidate.match !== "accessory") {
+        // The exact item at the same price from another seller is still worth seeing.
+        const delta = candidate.priceDelta ?? 0;
+        if (candidate.match === "same-item" ? delta < 0 : delta <= 0) return false;
+      }
       if (
         sameBrandOnly &&
         run?.sourceProduct.brand &&
@@ -76,6 +80,12 @@ export function SidePanel({ onFindAlternatives }: SidePanelProps) {
           <span>Current product</span>
           <strong>{run.sourceProduct.title}</strong>
           {run.sourceProduct.price && <em>{formatMoney(run.sourceProduct.price.amount)}</em>}
+          {run.sourceProduct.seller && (
+            <span>
+              Sold by {run.sourceProduct.seller}
+              {run.sourceProduct.sellerScore !== undefined && ` · ${run.sourceProduct.sellerScore}% seller score`}
+            </span>
+          )}
         </section>
       )}
 
@@ -185,6 +195,29 @@ export function SidePanel({ onFindAlternatives }: SidePanelProps) {
   );
 }
 
+/** When prices tie, the seller is what differs: say which listing is the safer buy. */
+function SellerComparison({ run }: { run: SearchRun }) {
+  const source = run.sourceProduct;
+  const tied = run.candidates.filter(
+    (c) => c.match === "same-item" && !c.suspicious && c.product.price?.amount === source.price?.amount
+  );
+  const rated = tied.filter((c) => c.product.sellerScore !== undefined);
+  if (source.sellerScore === undefined || !rated.length) return null;
+  const best = rated.reduce((a, b) => (b.product.sellerScore! > a.product.sellerScore! ? b : a));
+  if (best.product.sellerScore! > source.sellerScore) {
+    return (
+      <>
+        {" "}Same price from a better-rated seller: {best.product.seller} ({best.product.sellerScore}% vs{" "}
+        {source.sellerScore}%).{" "}
+        <a href={best.product.url} target="_blank" rel="noreferrer">
+          Open it
+        </a>
+      </>
+    );
+  }
+  return <> Your seller ({source.seller}, {source.sellerScore}%) is the best-rated at this price.</>;
+}
+
 function byPrice(a: CandidateScore, b: CandidateScore): number {
   return (a.product.price?.amount ?? Infinity) - (b.product.price?.amount ?? Infinity);
 }
@@ -218,16 +251,23 @@ function Verdict({ run }: { run: SearchRun }) {
       <CheckCircle2 size={18} aria-hidden="true" />
       <div>
         <strong>
-          {summary.sameItemCount
-            ? "You're already on the cheapest listing we found"
-            : "No other listing of this exact item found"}
+          {summary.samePriceCount
+            ? `Lowest price we found — ${summary.samePriceCount} other seller${summary.samePriceCount === 1 ? " has" : "s have"} it at the same price`
+            : summary.sameItemCount
+              ? "You're already on the cheapest listing we found"
+              : "No other listing of this exact item found"}
         </strong>
         <span>
           {summary.sameItemCount
             ? `Compared against ${summary.sameItemCount} other listing${summary.sameItemCount === 1 ? "" : "s"} of the same item${
-                summary.sameItemPriceRange ? ` (${formatMoney(summary.sameItemPriceRange.min)}–${formatMoney(summary.sameItemPriceRange.max)})` : ""
+                !summary.sameItemPriceRange
+                  ? ""
+                  : summary.sameItemPriceRange.min === summary.sameItemPriceRange.max
+                    ? ` (${formatMoney(summary.sameItemPriceRange.min)})`
+                    : ` (${formatMoney(summary.sameItemPriceRange.min)}–${formatMoney(summary.sameItemPriceRange.max)})`
               }.`
             : "See similar alternatives below."}
+          {summary.samePriceCount > 0 && <SellerComparison run={run} />}
           {summary.suspiciousCount > 0 && ` Ignored ${summary.suspiciousCount} implausibly cheap listing${summary.suspiciousCount === 1 ? "" : "s"}.`}
         </span>
       </div>
@@ -259,6 +299,12 @@ function ResultCard({ candidate }: { candidate: CandidateScore }) {
         </div>
         <div className="meta">
           {candidate.product.rating && <span>{candidate.product.rating.toFixed(1)} rating</span>}
+          {candidate.product.seller && (
+            <span>
+              {candidate.product.seller}
+              {candidate.product.sellerScore !== undefined && ` (${candidate.product.sellerScore}%)`}
+            </span>
+          )}
           {candidate.product.reviewCount !== undefined && (
             <span>{candidate.product.reviewCount} reviews</span>
           )}

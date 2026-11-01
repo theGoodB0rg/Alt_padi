@@ -18,6 +18,17 @@ describe("jumia-ng live HTML shapes", () => {
     expect(product.categoryPath).toEqual(["Phones & Tablets", "Mounts & Stands"]);
   });
 
+  it("reads the seller name and seller score from product pages", () => {
+    const html = `
+      <h1>Tecno Spark 20 Pro</h1>
+      <section><h2>Seller Information</h2><p>Value Gadgets</p><div><bdo>72%</bdo> Seller Score</div><p>346 Followers</p></section>`;
+
+    const product = parseProductPage(html, "https://www.jumia.com.ng/spark.html");
+
+    expect(product.seller).toBe("Value Gadgets");
+    expect(product.sellerScore).toBe(72);
+  });
+
   it("reads category, brand and the current rating markup from search cards", () => {
     const html = `
       <article class="prd _fb col c-prd">
