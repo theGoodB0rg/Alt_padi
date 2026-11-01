@@ -139,9 +139,9 @@ export function describeQuantityDifference(source: QuantityInfo, candidate: Quan
   return parts.length ? parts.join(", ") : undefined;
 }
 
-/** 6.5" vs 6.52" is the same screen; 50kg vs 25kg is not. */
+/** 6.5" vs 6.52" is the same screen; 6.78" vs 6.9" and 50kg vs 25kg are not. */
 function approxEqual(a: number, b: number): boolean {
-  return Math.abs(a - b) / Math.max(a, b) <= 0.03;
+  return Math.abs(a - b) / Math.max(a, b) <= 0.01;
 }
 
 export function unitPrice(price: number, quantity: QuantityInfo): { amount: number; unit: string } | undefined {

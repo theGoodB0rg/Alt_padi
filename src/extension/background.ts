@@ -59,18 +59,44 @@ async function fetchTextWithCache(url: string): Promise<string> {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const html = await response.text();
-    await chrome.storage.local.set({
-      [cacheKey]: {
-        html,
-        expiresAt: Date.now() + ttlFor(url)
-      }
-    });
+    await cacheWrite(cacheKey, { html, expiresAt: Date.now() + ttlFor(url) });
     return html;
   } finally {
     clearTimeout(timeout);
   }
 }
 
+/**
+ * The cache is an optimisation: a full storage quota must never fail a search.
+ * On quota errors, drop expired entries (then the oldest half) and retry once.
+ */
+async function cacheWrite(key: string, value: { html: string; expiresAt: number }): Promise<void> {
+  try {
+    await chrome.storage.local.set({ [key]: value });
+    return;
+  } catch {
+    await pruneFetchCache();
+  }
+  try {
+    await chrome.storage.local.set({ [key]: value });
+  } catch {
+    // Still full: skip caching this page.
+  }
+}
+
+async function pruneFetchCache(): Promise<void> {
+  const all = (await chrome.storage.local.get(null)) as Record<string, { expiresAt?: number }>;
+  const entries = Object.entries(all).filter(([key]) => key.startsWith("fetch:"));
+  const now = Date.now();
+  const expired = entries.filter(([, value]) => (value.expiresAt ?? 0) <= now).map(([key]) => key);
+  const live = entries
+    .filter(([, value]) => (value.expiresAt ?? 0) > now)
+    .sort(([, a], [, b]) => (a.expiresAt ?? 0) - (b.expiresAt ?? 0))
+    .map(([key]) => key);
+  await chrome.storage.local.remove([...expired, ...live.slice(0, Math.ceil(live.length / 2))]);
+}
+
 function ttlFor(url: string): number {
-  return url.includes("/catalog/") ? 10 * 60 * 1000 : 6 * 60 * 60 * 1000;
+  // Search pages (any "?q=", including category-scoped ones) go stale fast; product pages less so.
+  return url.includes("?q=") ? 10 * 60 * 1000 : 6 * 60 * 60 * 1000;
 }

@@ -64,9 +64,15 @@ export function parseSearchResults(html: string, requestUrl: string): ProductSna
           .split("/")
           .map(clean)
           .filter(Boolean),
-        rating: numberOrUndefined(reviewText.match(/([0-9.]+)\s+out of 5/i)?.[1]),
+        // Current cards: <span class="rv-avg"> 4.3 </span><span class="rv-cnt">(646)</span>;
+        // older cards: "4.1 out of 5 (24)".
+        rating: numberOrUndefined(
+          textFrom(card, ".rv-avg") ?? reviewText.match(/([0-9.]+)\s+out of 5/i)?.[1]
+        ),
         reviewCount: parseIntOrUndefined(
-          reviewText.match(/\((\d+)\)/)?.[1] ?? reviewText.match(/(\d+)\s+reviews?/i)?.[1]
+          textFrom(card, ".rv-cnt")?.match(/(\d[\d,]*)/)?.[1]?.replace(/,/g, "") ??
+            reviewText.match(/\((\d+)\)/)?.[1] ??
+            reviewText.match(/(\d+)\s+reviews?/i)?.[1]
         ),
         specs: {},
         source: "search"

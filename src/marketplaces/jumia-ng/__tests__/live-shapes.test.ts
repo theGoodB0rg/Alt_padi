@@ -18,6 +18,23 @@ describe("jumia-ng live HTML shapes", () => {
     expect(product.categoryPath).toEqual(["Phones & Tablets", "Mounts & Stands"]);
   });
 
+  it("reads category, brand and the current rating markup from search cards", () => {
+    const html = `
+      <article class="prd _fb col c-prd">
+        <a href="/redmi-15c-123.html" class="core" data-gtm-brand="XIAOMI" data-gtm-category="Phones &amp; Tablets/Mobile Phones/Smartphones/Android Phones">
+          <div class="info"><h3 class="name">XIAOMI Redmi 15C 6.9'' 4GB RAM/128GB ROM</h3><div class="prc">₦ 172,499</div>
+          <div class="rev"><svg></svg><span class="rv-avg"> 4.3 </span><span class="rv-cnt">(1,646)</span></div></div>
+        </a>
+      </article>`;
+
+    const [card] = parseSearchResults(html, "https://www.jumia.com.ng/smartphones/?q=redmi");
+
+    expect(card.brand).toBe("XIAOMI");
+    expect(card.categoryPath).toEqual(["Phones & Tablets", "Mobile Phones", "Smartphones", "Android Phones"]);
+    expect(card.rating).toBe(4.3);
+    expect(card.reviewCount).toBe(1646);
+  });
+
   it("parses only real product cards and ignores wishlist/filter links", () => {
     const html = `
       <section><a href="/computing/?q=phone+stand">Category</a></section>

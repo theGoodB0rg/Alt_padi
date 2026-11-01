@@ -5,6 +5,7 @@ export const SCORE_WEIGHTS = {
   categorySimilarity: 12,
   specOverlap: 12,
   descriptorCoverage: 24,
+  quantityMatch: 14,
   dimensionsCompatibility: 6,
   ratingTrust: 5,
   sellerTrust: 3,

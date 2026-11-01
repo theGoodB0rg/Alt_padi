@@ -117,7 +117,8 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   const titleScore = similarity(source.title, product.title);
   total += titleScore * SCORE_WEIGHTS.titleSimilarity;
   if (titleScore >= 0.25) reasons.push("similar title");
-  if (titleScore < 0.18) warnings.push("weak title match");
+  // A different model is expected to have a different title; only flag it where identity matters.
+  if (titleScore < 0.18 && match !== "alternative") warnings.push("weak title match");
 
   const categoryRelation = compareCategories(source.categoryPath, product.categoryPath);
   const categoryScore = categoryRelation === "same" ? 1 : categoryRelation === "sibling" ? 0.6 : 0;
@@ -130,8 +131,13 @@ function scoreCandidate(source: ProductSnapshot, product: ProductSnapshot): Cand
   if (specScore >= 0.5) reasons.push("similar specs");
   if (comparableSpecs.length >= 2 && Object.keys(product.specs).length === 0) {
     total -= SCORE_WEIGHTS.missingDataPenalty;
-    warnings.push("missing comparable specs");
+    if (match === "same-item" || match === "variant") warnings.push("missing comparable specs");
   }
+
+  // Numbered specs both listings state (8GB/256GB, 50kg, 55 inch, 1000W): closest configuration first.
+  const shared = sharedQuantitySpecs(source, product);
+  total += shared.score * SCORE_WEIGHTS.quantityMatch;
+  if (shared.matched.length && match === "alternative") reasons.push(`same ${shared.matched.slice(0, 3).join(", ")}`);
 
   const coverage = descriptorCoverage(source, product);
   total += coverage.score * SCORE_WEIGHTS.descriptorCoverage;
@@ -197,6 +203,17 @@ function descriptorCoverage(source: ProductSnapshot, candidate: ProductSnapshot)
   );
   const missing = wanted.filter((word) => !haystack.has(stem(word)));
   return { score: (wanted.length - missing.length) / wanted.length, missing };
+}
+
+function sharedQuantitySpecs(source: ProductSnapshot, candidate: ProductSnapshot): { score: number; matched: string[] } {
+  const a = readQuantities(sourceText(source)).specs;
+  const b = readQuantities(sourceText(candidate)).specs;
+  const wanted = Object.entries(a).flatMap(([unit, values]) => values.map((value) => ({ unit, value })));
+  if (!wanted.length) return { score: 0, matched: [] };
+  const matched = wanted.filter(({ unit, value }) =>
+    (b[unit] ?? []).some((other) => Math.abs(other - value) / Math.max(other, value) <= 0.01)
+  );
+  return { score: matched.length / wanted.length, matched: matched.map(({ unit, value }) => `${value}${unit}`) };
 }
 
 function median(values: number[]): number {
