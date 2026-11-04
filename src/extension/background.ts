@@ -1,6 +1,7 @@
 import { runAlternativeSearch } from "@core/search-runner";
 import { fetchCurrentProductFromUrl } from "@extension/currentProduct";
-import type { ExtensionRequest, ExtensionResponse } from "@extension/messages";
+import type { SearchProgress } from "@core/types";
+import type { ExtensionRequest, ExtensionResponse, SearchProgressEvent } from "@extension/messages";
 import { jumiaNgAdapter } from "@marketplaces/jumia-ng/adapter";
 
 const LIMITS = {
@@ -28,6 +29,7 @@ chrome.runtime.onMessage.addListener(
 );
 
 async function handleSearch() {
+  reportProgress({ stage: "reading" });
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab.id || !tab.url?.startsWith("https://www.jumia.com.ng/")) {
     throw new Error("Open a Jumia Nigeria product page before searching.");
@@ -37,8 +39,15 @@ async function handleSearch() {
 
   return runAlternativeSearch(product, jumiaNgAdapter, {
     ...LIMITS,
-    fetchText: fetchTextWithCache
+    fetchText: fetchTextWithCache,
+    onProgress: reportProgress
   });
+}
+
+function reportProgress(progress: SearchProgress): void {
+  const event: SearchProgressEvent = { type: "SEARCH_PROGRESS", progress };
+  // Progress is cosmetic: a closed side panel (no receiver) must not fail the search.
+  chrome.runtime.sendMessage(event).catch(() => {});
 }
 
 async function fetchTextWithCache(url: string): Promise<string> {

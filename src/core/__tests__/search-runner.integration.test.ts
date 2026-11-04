@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runAlternativeSearch } from "@core/search-runner";
 import type { MarketplaceAdapter } from "@marketplaces/adapter";
-import type { ProductSnapshot } from "@core/types";
+import type { ProductSnapshot, SearchProgress } from "@core/types";
 
 describe("runAlternativeSearch", () => {
   const source: ProductSnapshot = {
@@ -93,5 +93,35 @@ describe("runAlternativeSearch", () => {
     expect(run.errors).toEqual(
       expect.arrayContaining(["Samsung 32-inch HD TV UA32T5300 Renewed: network unavailable"])
     );
+  });
+
+  it("reports progress as it searches and compares", async () => {
+    const adapter: MarketplaceAdapter = {
+      id: "jumia-ng",
+      buildSearchRequests: () => [
+        { query: "one", url: "https://www.jumia.com.ng/catalog/?q=one" },
+        { query: "two", url: "https://www.jumia.com.ng/catalog/?q=two" }
+      ],
+      parseSearchResults: (html) => [
+        { ...source, title: `${source.title} ${html}`, url: `https://www.jumia.com.ng/${html}.html`, source: "search" }
+      ],
+      parseProductDetails: (_html, url) => ({ ...source, url, source: "detail" })
+    };
+    const progress: SearchProgress[] = [];
+
+    await runAlternativeSearch(source, adapter, {
+      maxQueries: 2,
+      maxSearchCandidates: 10,
+      maxDetailFetches: 0,
+      fetchText: async (url) => url.split("q=")[1] ?? "detail",
+      onProgress: (step) => progress.push(step)
+    });
+
+    expect(progress).toEqual([
+      { stage: "searching", done: 0, total: 2 },
+      { stage: "searching", done: 1, total: 2 },
+      { stage: "searching", done: 2, total: 2 },
+      { stage: "comparing", found: 2 }
+    ]);
   });
 });

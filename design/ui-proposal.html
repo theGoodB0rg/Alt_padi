@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AltPadi UI Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============ Design tokens ============ */
+:root {
+  --bg: #f4f3ef;
+  --panel: #fbfaf8;
+  --surface: #ffffff;
+  --surface-2: #f3f2ee;
+  --line: #e7e5df;
+  --line-strong: #d8d5cd;
+  --text: #16181a;
+  --text-2: #5d6267;
+  --text-3: #8b9095;
+  --brand: #0f6b4f;
+  --brand-ink: #ffffff;
+  --brand-soft: #e6f2ec;
+  --brand-text: #0b5a42;
+  --save: #0f8a5f;
+  --warn: #9a5b00;
+  --warn-soft: #fdf3e1;
+  --danger: #b4322f;
+  --danger-soft: #fdeceb;
+  --gold: #e0a72e;
+  --shadow-sm: 0 1px 2px rgba(20, 22, 24, .05);
+  --shadow-md: 0 1px 2px rgba(20, 22, 24, .04), 0 6px 20px -6px rgba(20, 22, 24, .10);
+  --shadow-lg: 0 2px 4px rgba(20, 22, 24, .04), 0 24px 60px -20px rgba(20, 22, 24, .25);
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0c0d0e;
+  --panel: #131516;
+  --surface: #1a1c1e;
+  --surface-2: #222527;
+  --line: #2a2d30;
+  --line-strong: #363a3d;
+  --text: #f1f2f2;
+  --text-2: #a5abb0;
+  --text-3: #767c81;
+  --brand: #2fb487;
+  --brand-ink: #062419;
+  --brand-soft: #14302a;
+  --brand-text: #6fd7ad;
+  --save: #4cd39f;
+  --warn: #f0b45a;
+  --warn-soft: #2e2416;
+  --danger: #f07a75;
+  --danger-soft: #331b1a;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -8px rgba(0,0,0,.6);
+  --shadow-lg: 0 30px 80px -20px rgba(0,0,0,.8);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0d0e; --panel: #131516; --surface: #1a1c1e; --surface-2: #222527;
+    --line: #2a2d30; --line-strong: #363a3d; --text: #f1f2f2; --text-2: #a5abb0; --text-3: #767c81;
+    --brand: #2fb487; --brand-ink: #062419; --brand-soft: #14302a; --brand-text: #6fd7ad;
+    --save: #4cd39f; --warn: #f0b45a; --warn-soft: #2e2416; --danger: #f07a75; --danger-soft: #331b1a;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -8px rgba(0,0,0,.6);
+    --shadow-lg: 0 30px 80px -20px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+button { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ============ Proposal page layout ============ */
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 920px) {
+  .page { grid-template-columns: 1fr; gap: 32px; padding: 24px 16px 48px; }
+  .stage { order: -1; }
+}
+.notes h1 { font-size: 30px; letter-spacing: -.02em; line-height: 1.15; margin: 8px 0 10px; }
+.notes .lede { color: var(--text-2); font-size: 15px; max-width: 54ch; margin: 0 0 28px; }
+.kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-text); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 28px; }
+.controls .label { font-size: 12px; color: var(--text-3); width: 100%; }
+.seg {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.seg button {
+  border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: background .2s var(--ease), color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.ghost-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface);
+  border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.ghost-btn:hover { border-color: var(--line-strong); }
+
+.change-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.change {
+  display: grid; grid-template-columns: 32px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--line);
+}
+.change .ic {
+  width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+  background: var(--brand-soft); color: var(--brand-text);
+}
+.change h3 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.change p { margin: 0; color: var(--text-2); font-size: 13.5px; }
+.change .ba { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; }
+.change .ba span { padding: 2px 8px; border-radius: 6px; }
+.change .ba .b { background: var(--surface-2); color: var(--text-3); text-decoration: line-through; }
+.change .ba .a { background: var(--brand-soft); color: var(--brand-text); }
+
+/* ============ Side panel frame ============ */
+.stage { position: sticky; top: 24px; }
+.chrome-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--line); border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0; font-size: 12px; color: var(--text-3);
+}
+.chrome-bar .dots { display: flex; gap: 6px; }
+.chrome-bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
+.panel {
+  position: relative;
+  height: min(820px, calc(100vh - 90px));
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+}
+.scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+
+/* ---------- Panel header ---------- */
+.p-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  backdrop-filter: blur(10px);
+  position: relative; z-index: 2;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: linear-gradient(145deg, #13825f, #0b4f3a); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 6px -2px rgba(11,79,58,.6);
+}
+.logo svg { width: 17px; height: 17px; stroke-width: 2.2; }
+.brand b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.brand small { display: block; font-size: 11.5px; color: var(--text-3); margin-top: -1px; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid transparent; background: transparent;
+  display: grid; place-items: center; cursor: pointer; color: var(--text-2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn:focus-visible, .btn:focus-visible, .chip:focus-visible, .seg button:focus-visible, .link:focus-visible, .why-btn:focus-visible, .fold > summary:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}
+
+/* progress line under header */
+.progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; opacity: 0; transition: opacity .3s; }
+.progress.on { opacity: 1; }
+.progress i {
+  position: absolute; inset: 0; transform-origin: left;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  animation: sweep 1.3s var(--ease) infinite;
+}
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+.body { padding: 16px; display: grid; gap: 14px; }
+
+/* ---------- Product card ---------- */
+.product {
+  display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center;
+  padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+.thumb {
+  width: 56px; height: 56px; border-radius: 10px; display: grid; place-items: center;
+  background: linear-gradient(160deg, var(--surface-2), color-mix(in srgb, var(--surface-2) 60%, var(--line)));
+  color: var(--text-3);
+}
+.thumb svg { width: 24px; height: 24px; stroke-width: 1.5; }
+.thumb.sm { width: 64px; height: 64px; }
+.product .over { font-size: 11.5px; color: var(--text-3); font-weight: 500; }
+.product .t { font-weight: 600; font-size: 13.5px; line-height: 1.3; margin: 1px 0 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.product .row { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+.product .price { font-weight: 700; color: var(--text); font-size: 14px; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: 11px; border: 0; cursor: pointer;
+  font-size: 14px; font-weight: 600; letter-spacing: -.005em;
+  transition: transform .15s var(--ease), box-shadow .2s var(--ease), background .2s;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary {
+  width: 100%; color: var(--brand-ink);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 88%, #fff), var(--brand));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 2px rgba(0,0,0,.1), 0 8px 18px -8px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+.btn-primary:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 1px 2px rgba(0,0,0,.1), 0 12px 24px -10px color-mix(in srgb, var(--brand) 80%, transparent); }
+.btn-quiet { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); height: 36px; padding: 0 12px; font-size: 13px; font-weight: 500; }
+.btn-quiet:hover { border-color: var(--line-strong); }
+.hint { text-align: center; font-size: 12px; color: var(--text-3); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.hint svg { width: 13px; height: 13px; }
+
+/* ---------- Loading ---------- */
+.steps { display: grid; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
+.step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-3); transition: color .3s; }
+.step .dot {
+  width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  border: 1.5px solid var(--line-strong); transition: all .35s var(--ease);
+}
+.step .dot svg { width: 12px; height: 12px; stroke-width: 3; opacity: 0; transform: scale(.4); transition: all .35s var(--ease); }
+.step.active { color: var(--text); font-weight: 500; }
+.step.active .dot { border-color: var(--brand); border-top-color: transparent; animation: spin .8s linear infinite; }
+.step.done { color: var(--text-2); }
+.step.done .dot { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); animation: none; }
+.step.done .dot svg { opacity: 1; transform: scale(1); }
+.step .n { margin-left: auto; font-size: 12px; color: var(--text-3); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-foot { display: flex; align-items: center; justify-content: space-between; }
+.loading-foot span { font-size: 12px; color: var(--text-3); }
+
+.skel { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
+.sk { border-radius: 6px; background: linear-gradient(90deg, var(--surface-2) 0%, color-mix(in srgb, var(--surface-2) 40%, var(--surface)) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+@keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.skel .lines { display: grid; gap: 8px; align-content: center; }
+
+/* ---------- Verdict ---------- */
+.verdict {
+  position: relative; overflow: hidden;
+  padding: 16px; border-radius: var(--r-lg); border: 1px solid var(--line);
+  background: var(--surface); box-shadow: var(--shadow-md);
+}
+.verdict.save {
+  border-color: color-mix(in srgb, var(--save) 30%, var(--line));
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--save) 14%, transparent), transparent 60%),
+    var(--surface);
+}
+.verdict .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--brand-text); }
+.verdict .big { font-size: 30px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; margin: 8px 0 2px; color: var(--save); }
+.verdict.ok .big { font-size: 20px; color: var(--text); letter-spacing: -.015em; }
+.verdict p { margin: 0; color: var(--text-2); font-size: 13px; }
+.verdict .cta { display: flex; gap: 8px; margin-top: 14px; }
+.verdict .cta .btn-primary { height: 40px; font-size: 13.5px; }
+.verdict .compare {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 14px;
+  padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 12px;
+}
+.verdict .compare div:last-child { text-align: right; }
+.verdict .compare b { display: block; font-size: 14px; color: var(--text); }
+.verdict .compare .old b { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.verdict .compare .arrow { color: var(--text-3); }
+.verdict .compare span { color: var(--text-3); }
+
+.trust {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; color: var(--text-2);
+}
+.trust svg { color: var(--brand-text); margin-top: 1px; }
+.trust b { color: var(--text); font-weight: 600; }
+
+/* ---------- Filters ---------- */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 500; color: var(--text-2);
+  cursor: pointer; transition: all .2s var(--ease);
+}
+.chip svg { width: 13px; height: 13px; stroke-width: 2.4; transition: transform .25s var(--ease), opacity .2s; }
+.chip[aria-pressed="false"] svg { width: 0; opacity: 0; transform: scale(.4); margin-right: -6px; }
+.chip[aria-pressed="true"] { background: var(--text); color: var(--panel); border-color: var(--text); }
+.chip:hover { border-color: var(--line-strong); }
+.filters .sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+.filters .seg { padding: 2px; border-radius: 999px; }
+.filters .seg button { padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+
+/* ---------- Sections ---------- */
+.section-h { display: flex; align-items: center; gap: 8px; margin: 6px 2px -4px; }
+.section-h .ic { color: var(--text-3); }
+.section-h h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.section-h .count { font-size: 11.5px; font-weight: 600; color: var(--text-3); background: var(--surface-2); border-radius: 999px; padding: 1px 7px; }
+.section-h .help { margin-left: auto; color: var(--text-3); font-size: 11.5px; }
+
+/* ---------- Result card ---------- */
+.card {
+  display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm); transition: border-color .2s, box-shadow .25s var(--ease), transform .25s var(--ease);
+}
+.card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.card .t { font-size: 13px; font-weight: 500; line-height: 1.35; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .pr { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.card .pr b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; }
+.pill.save { color: var(--save); background: color-mix(in srgb, var(--save) 12%, transparent); }
+.pill.same { color: var(--text-2); background: var(--surface-2); }
+.pill.warn { color: var(--warn); background: var(--warn-soft); }
+.pill svg { width: 12px; height: 12px; stroke-width: 2.4; }
+.card .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 7px; font-size: 12px; color: var(--text-2); }
+.card .meta span { display: inline-flex; align-items: center; gap: 4px; }
+.card .meta svg { width: 13px; height: 13px; }
+.star { color: var(--gold); fill: var(--gold) !important; }
+.match { display: inline-flex; align-items: center; gap: 5px; }
+.bars { display: inline-flex; gap: 2px; align-items: flex-end; }
+.bars i { width: 3px; border-radius: 1px; background: var(--line-strong); }
+.bars i:nth-child(1) { height: 6px; } .bars i:nth-child(2) { height: 9px; } .bars i:nth-child(3) { height: 12px; }
+.bars.l3 i, .bars.l2 i:nth-child(-n+2), .bars.l1 i:nth-child(1) { background: var(--brand); }
+.bars.l1 i:nth-child(1) { background: var(--warn); }
+.card .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 8px; }
+.link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--brand-text); text-decoration: none; border-radius: 6px; }
+.link svg { width: 13px; height: 13px; transition: transform .2s var(--ease); }
+.link:hover svg { transform: translate(2px, -2px); }
+.why-btn { border: 0; background: none; padding: 0; font-size: 12px; color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; border-radius: 6px; }
+.why-btn svg { width: 13px; height: 13px; transition: transform .25s var(--ease); }
+.why-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--ease); }
+.collapse > div { overflow: hidden; }
+.collapse.open { grid-template-rows: 1fr; }
+.reasons { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 10px; }
+.reasons span { font-size: 11.5px; padding: 2px 8px; border-radius: 6px; background: var(--brand-soft); color: var(--brand-text); display: inline-flex; align-items: center; gap: 4px; }
+.reasons span.w { background: var(--warn-soft); color: var(--warn); }
+.reasons svg { width: 11px; height: 11px; stroke-width: 2.6; }
+.card.best { border-color: color-mix(in srgb, var(--save) 45%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--save) 10%, transparent), var(--shadow-sm); }
+.ribbon { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--save); margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+.ribbon svg { width: 11px; height: 11px; stroke-width: 2.6; }
+
+/* folded groups */
+.fold { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.fold > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 12px; cursor: pointer; border-radius: var(--r-md); }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary .txt { display: grid; }
+.fold > summary b { font-size: 13px; font-weight: 600; }
+.fold > summary small { font-size: 11.5px; color: var(--text-3); }
+.fold > summary .chev { margin-left: auto; color: var(--text-3); transition: transform .25s var(--ease); }
+.fold[open] > summary .chev { transform: rotate(180deg); }
+.fold .inner { display: grid; gap: 8px; padding: 0 8px 8px; }
+.fold .card { box-shadow: none; }
+.fold.warnish > summary .ic { color: var(--warn); }
+
+/* empty / error */
+.empty-state { text-align: center; padding: 28px 12px 8px; display: grid; justify-items: center; gap: 6px; }
+.empty-state .orb {
+  width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; margin-bottom: 8px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-md); color: var(--text-2);
+}
+.empty-state .orb svg { width: 26px; height: 26px; stroke-width: 1.5; }
+.empty-state.err .orb { color: var(--danger); }
+.empty-state h3 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.empty-state p { margin: 0 0 10px; color: var(--text-2); font-size: 13px; max-width: 30ch; }
+.nothing { text-align: center; color: var(--text-3); font-size: 12.5px; padding: 8px; }
+.nothing button { border: 0; background: none; color: var(--brand-text); font-weight: 600; cursor: pointer; font-size: 12.5px; }
+
+/* footer */
+.p-foot { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-3); display: flex; align-items: center; gap: 6px; background: var(--panel); }
+.p-foot svg { width: 12px; height: 12px; }
+
+/* ---------- Motion ---------- */
+.enter > * { animation: rise .5s var(--ease) both; }
+.enter > *:nth-child(1) { animation-delay: 0ms; }
+.enter > *:nth-child(2) { animation-delay: 60ms; }
+.enter > *:nth-child(3) { animation-delay: 120ms; }
+.enter > *:nth-child(4) { animation-delay: 170ms; }
+.enter > *:nth-child(5) { animation-delay: 220ms; }
+.enter > *:nth-child(6) { animation-delay: 260ms; }
+.enter > *:nth-child(7) { animation-delay: 300ms; }
+.enter > *:nth-child(8) { animation-delay: 330ms; }
+.enter > *:nth-child(n+9) { animation-delay: 360ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fade { animation: fadein .3s var(--ease) both; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+.toast {
+  position: absolute; left: 50%; bottom: 52px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+  background: var(--text); color: var(--panel); font-size: 12.5px; font-weight: 500; padding: 8px 14px; border-radius: 10px;
+  box-shadow: var(--shadow-lg); transition: all .3s var(--ease); white-space: nowrap; display: flex; gap: 6px; align-items: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast svg { width: 14px; height: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="notes">
+    <span class="kicker">AltPadi · UI proposal</span>
+    <h1>Calm, premium, and clear at a glance</h1>
+    <p class="lede">The panel on the right is clickable. Press <b>Check prices</b> to watch the loading flow, then try the filters, open a card's “Why this match”, and switch scenarios below.</p>
+
+    <div class="controls">
+      <span class="label">Scenario</span>
+      <div class="seg" id="scenario">
+        <button aria-pressed="true" data-v="save">You can save</button>
+        <button aria-pressed="false" data-v="best">Best price already</button>
+        <button aria-pressed="false" data-v="off">Not a product page</button>
+        <button aria-pressed="false" data-v="fail">Network error</button>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="label">Theme</span>
+      <div class="seg" id="theme">
+        <button aria-pressed="true" data-v="auto">Auto</button>
+        <button aria-pressed="false" data-v="light">Light</button>
+        <button aria-pressed="false" data-v="dark">Dark</button>
+      </div>
+      <button class="ghost-btn" id="reset"><svg class="i"><use href="#i-reset"/></svg>Start over</button>
+    </div>
+
+    <ul class="change-list">
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-loader"/></svg></div>
+        <div><h3>No more spinning cursor</h3>
+          <p>The spinning circle came from the button switching to <code>cursor: wait</code> while searching. That tells Windows “the app is busy” and feels like a freeze. Now the cursor stays normal and the panel itself shows progress: three named steps, a thin moving line, and placeholder cards in the shape of the results. You can also stop a search.</p>
+          <div class="ba"><span class="b">cursor: wait + “Searching...”</span><span class="a">Steps + skeletons + Stop</span></div></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-trend"/></svg></div>
+        <div><h3>The answer first</h3>
+          <p>One big headline answers the only question that matters: can I pay less? The saving is the largest text on screen, with old price → new price right under it and a single “Open cheapest” button.</p></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-type"/></svg></div>
+        <div><h3>Plain English everywhere</h3>
+          <p>Labels say what they do. Technical scores are hidden until you ask for them.</p>
+          <div class="ba"><span class="b">Minimum confidence: Low</span><span class="a">Match: Any / Good / Best</span></div>
+          <div class="ba"><span class="b">74/100 score · high</span><span class="a">▮▮▮ Best match</span></div>
+          <div class="ba"><span class="b">Find cheaper alternatives</span><span class="a">Check prices</span></div></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-eye"/></svg></div>
+        <div><h3>Less to read on each card</h3>
+          <p>Each card shows four things: name, price, how much you save, and the seller's trust score. The reasons (“same brand”, “similar specs”) fold under “Why this match”.</p></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-sliders"/></svg></div>
+        <div><h3>Filters as one-tap chips</h3>
+          <p>The checkbox-and-dropdown box becomes one row of chips under the answer. Results update right away, with a “Clear filters” way out when nothing is left.</p></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-sparkle"/></svg></div>
+        <div><h3>A premium look without the noise</h3>
+          <p>Warm off-white surfaces, one deep green accent, Inter type with even-width numbers, soft layered shadows, and dark mode that follows Windows. Motion is short and purposeful (cards rise in, the saving counts up, panels open smoothly), and it switches off for anyone who turns on “reduce motion”.</p></div>
+      </li>
+      <li class="change">
+        <div class="ic"><svg class="i"><use href="#i-alert"/></svg></div>
+        <div><h3>Friendly empty and error states</h3>
+          <p>“Not a product page” and “Couldn't reach Jumia” each get an icon, one sentence, and one clear next step (Retry), instead of a red text bar.</p></div>
+      </li>
+    </ul>
+  </section>
+
+  <section class="stage" aria-label="Side panel preview">
+    <div class="chrome-bar"><div class="dots"><i></i><i></i><i></i></div><span>Chrome side panel · 400px</span><span></span></div>
+    <div class="panel" id="panel">
+      <header class="p-head">
+        <div class="brand">
+          <div class="logo"><svg class="i"><use href="#i-tag"/></svg></div>
+          <div><b>AltPadi</b><small>Price check for Jumia</small></div>
+        </div>
+        <button class="icon-btn" id="refresh" title="Check again" aria-label="Check again" hidden><svg class="i"><use href="#i-reset"/></svg></button>
+        <div class="progress" id="progress"><i></i></div>
+      </header>
+      <div class="scroll" id="scroll"><div class="body" id="body"></div></div>
+      <footer class="p-foot"><svg class="i"><use href="#i-lock"/></svg>Runs only when you ask. Nothing leaves your browser.</footer>
+      <div class="toast" id="toast"><svg class="i"><use href="#i-check"/></svg><span></span></div>
+    </div>
+  </section>
+</div>
+
+<!-- Icon sprite (Lucide, ISC licence — same set the extension already uses via lucide-react) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></symbol>
+  <symbol id="i-case" viewBox="0 0 24 24"><rect width="12" height="18" x="6" y="3" rx="3"/><circle cx="10" cy="7" r="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9 4.5 4h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v7h14v-7"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.4 2.4 0 0 0 3.42 0l6.58-6.58a2.4 2.4 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+  <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="m2 2 20 20"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M4.04 4.04 10.5 20.5l2.5-7.5 7.5-2.5Z"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M19 17v4"/><path d="M17 19h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></symbol>
+</svg>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const ic = (id, cls = "") => `<svg class="i ${cls}"><use href="#i-${id}"/></svg>`;
+const naira = (n) => "₦" + Math.round(n).toLocaleString("en-NG");
+
+/* ---------- Mock data (shapes mirror CandidateScore) ---------- */
+const SOURCE = { title: "Samsung Galaxy A15 128GB + 4GB RAM, 6.5\" — Blue Black", price: 189500, seller: "PhoneHub NG", sellerScore: 84, brand: "Samsung" };
+const ALL = [
+  { id: 1, match: "same-item", title: "Samsung Galaxy A15 128GB + 4GB RAM — Blue Black", price: 172000, seller: "Samsung Official Store", score: 98, rating: 4.6, reviews: 212, conf: "high", reasons: ["Same model", "Same storage", "Trusted seller"], warnings: [], brand: "Samsung", icon: "phone" },
+  { id: 2, match: "same-item", title: "Galaxy A15 (SM-A155F) 128GB 4GB Dual SIM", price: 181900, seller: "TechMart Lagos", score: 91, rating: 4.4, reviews: 87, conf: "high", reasons: ["Same model", "Same storage"], warnings: [], brand: "Samsung", icon: "phone" },
+  { id: 3, match: "same-item", title: "Samsung Galaxy A15 128GB 4GB — Blue Black", price: 189500, seller: "GadgetZone", score: 95, rating: 4.5, reviews: 140, conf: "high", reasons: ["Same model", "Same price", "Higher-rated seller"], warnings: [], brand: "Samsung", icon: "phone" },
+  { id: 4, match: "variant", title: "Samsung Galaxy A15 64GB + 4GB RAM — Light Blue", price: 159000, seller: "Samsung Official Store", score: 98, rating: 4.5, reviews: 96, conf: "medium", reasons: ["Same phone", "Smaller storage"], warnings: ["Half the storage"], brand: "Samsung", icon: "phone" },
+  { id: 5, match: "alternative", title: "Xiaomi Redmi 13C 128GB + 4GB RAM, 6.74\"", price: 149000, seller: "Xiaomi Store", score: 96, rating: 4.3, reviews: 530, conf: "high", reasons: ["Same storage", "Same RAM", "Bigger screen"], warnings: ["Different brand"], brand: "Xiaomi", icon: "phone" },
+  { id: 6, match: "alternative", title: "Tecno Spark 20 128GB + 8GB RAM", price: 142000, seller: "Tecno Mobile", score: 93, rating: 4.2, reviews: 318, conf: "medium", reasons: ["Same storage", "More RAM"], warnings: ["Different brand"], brand: "Tecno", icon: "phone" },
+  { id: 7, match: "alternative", title: "Infinix Hot 40i 128GB + 4GB RAM", price: 135500, seller: "Mobile Deals NG", score: 76, rating: 4.0, reviews: 61, conf: "low", reasons: ["Same storage"], warnings: ["Different brand", "Fewer reviews"], brand: "Infinix", icon: "phone" },
+  { id: 8, match: "accessory", title: "Silicone case for Samsung Galaxy A15 — Black", price: 3500, seller: "CaseKing", score: 88, rating: 4.1, reviews: 44, conf: "low", reasons: ["Made for this phone"], warnings: [], brand: "Generic", icon: "case" },
+  { id: 9, match: "accessory", title: "Tempered glass screen protector for Galaxy A15 (2 pack)", price: 2000, seller: "CaseKing", score: 88, rating: 4.0, reviews: 19, conf: "low", reasons: ["Made for this phone"], warnings: [], brand: "Generic", icon: "case" },
+  { id: 10, match: "suspicious", title: "Samsung Galaxy A15 128GB 4GB NEW", price: 18000, seller: "Best Deal 4U", score: 41, rating: 2.1, reviews: 3, conf: "low", reasons: [], warnings: ["Price too low for this phone", "Low seller score"], brand: "Samsung", icon: "phone" }
+];
+const BEST_DATA = ALL.map((c) => c.match === "same-item" ? { ...c, price: c.id === 1 ? 189500 : c.price + 12000 } : c);
+
+/* ---------- State ---------- */
+const state = { scenario: "save", phase: "idle", cheaper: true, brand: false, quality: "any", open: new Set(), timers: [] };
+const data = () => state.scenario === "best" ? BEST_DATA : ALL;
+
+function clearTimers() { state.timers.forEach(clearTimeout); state.timers = []; }
+function later(ms, fn) { state.timers.push(setTimeout(fn, ms)); }
+
+/* ---------- Views ---------- */
+function productCard() {
+  return `<div class="product">
+    <div class="thumb">${ic("phone")}</div>
+    <div>
+      <div class="over">You're viewing</div>
+      <div class="t">${SOURCE.title}</div>
+      <div class="row"><span class="price num">${naira(SOURCE.price)}</span><span>·</span><span>${ic("store")} ${SOURCE.seller}</span></div>
+    </div>
+  </div>`;
+}
+
+function viewIdle() {
+  if (state.scenario === "off") {
+    return `<div class="empty-state fade">
+      <div class="orb">${ic("cursor")}</div>
+      <h3>Open a Jumia product</h3>
+      <p>Go to any product page on jumia.com.ng and AltPadi will be ready to compare it.</p>
+      <button class="btn btn-quiet" onclick="toast('Opens jumia.com.ng in a new tab')">${ic("ext")} Go to Jumia</button>
+    </div>`;
+  }
+  return `<div class="enter" style="display:grid;gap:14px">
+    ${productCard()}
+    <button class="btn btn-primary" id="go">${ic("search")} Check prices</button>
+    <div class="hint">${ic("lock")} We only look when you press the button</div>
+  </div>`;
+}
+
+const STEPS = [
+  ["Reading this product", ""],
+  ["Searching Jumia", "3 searches"],
+  ["Comparing listings", "48 found"]
+];
+function viewLoading(step) {
+  const steps = STEPS.map(([t, n], i) => {
+    const cls = i < step ? "done" : i === step ? "active" : "";
+    return `<div class="step ${cls}"><span class="dot">${ic("check")}</span>${t}${i < step && n ? `<span class="n num">${n}</span>` : ""}</div>`;
+  }).join("");
+  const sk = (w) => `<div class="skel"><div class="sk" style="width:64px;height:64px;border-radius:10px"></div><div class="lines"><div class="sk" style="height:10px;width:${w}%"></div><div class="sk" style="height:10px;width:${w - 25}%"></div><div class="sk" style="height:14px;width:34%;margin-top:4px"></div></div></div>`;
+  return `${productCard()}
+    <div class="steps">${steps}</div>
+    <div class="loading-foot"><span>Usually takes 3–6 seconds</span><button class="btn btn-quiet" id="stop">${ic("x")} Stop</button></div>
+    ${sk(88)}${sk(78)}${sk(84)}`;
+}
+
+function viewError() {
+  return `<div class="empty-state err fade">
+    <div class="orb">${ic("wifi-off")}</div>
+    <h3>Couldn't reach Jumia</h3>
+    <p>Check your internet connection, then try again. Nothing was changed.</p>
+    <button class="btn btn-quiet" id="retry">${ic("reset")} Try again</button>
+  </div>`;
+}
+
+function filtered() {
+  const rank = { low: 0, medium: 1, high: 2 };
+  const need = { any: 0, good: 1, best: 2 }[state.quality];
+  return data().filter((c) => {
+    if (c.match === "accessory" || c.match === "suspicious") return true;
+    const delta = SOURCE.price - c.price;
+    if (state.cheaper && (c.match === "same-item" ? delta < 0 : delta <= 0)) return false;
+    if (state.brand && c.brand !== SOURCE.brand) return false;
+    return rank[c.conf] >= need;
+  });
+}
+
+function bars(conf) {
+  const lvl = { high: 3, medium: 2, low: 1 }[conf];
+  const label = { high: "Best match", medium: "Good match", low: "Check details" }[conf];
+  return `<span class="match"><span class="bars l${lvl}"><i></i><i></i><i></i></span>${label}</span>`;
+}
+
+function card(c, opts = {}) {
+  const delta = SOURCE.price - c.price;
+  let pill = "";
+  if (c.match === "suspicious") pill = `<span class="pill warn">${ic("alert")} Too cheap to trust</span>`;
+  else if (c.match !== "accessory") {
+    if (delta > 0) pill = `<span class="pill save">${ic("trend")} ${naira(delta)} less</span>`;
+    else if (delta === 0) pill = `<span class="pill same">Same price</span>`;
+    else pill = `<span class="pill warn">${naira(-delta)} more</span>`;
+  }
+  const open = state.open.has(c.id);
+  const reasons = c.reasons.map((r) => `<span>${ic("check")}${r}</span>`).join("") + c.warnings.map((w) => `<span class="w">${ic("alert")}${w}</span>`).join("");
+  return `<article class="card ${opts.best ? "best" : ""}">
+    <div class="thumb sm">${ic(c.icon)}</div>
+    <div style="min-width:0">
+      ${opts.best ? `<div class="ribbon">${ic("award")} Cheapest exact match</div>` : ""}
+      <h3 class="t">${c.title}</h3>
+      <div class="pr"><b class="num">${naira(c.price)}</b>${pill}</div>
+      <div class="meta">
+        <span title="Seller score">${ic("shield")} ${c.seller} <b class="num" style="color:var(--text)">${c.score}%</b></span>
+        <span>${ic("star", "star")} <span class="num">${c.rating.toFixed(1)}</span></span>
+        ${c.match === "accessory" || c.match === "suspicious" ? "" : bars(c.conf)}
+      </div>
+      <div class="collapse ${open ? "open" : ""}"><div><div class="reasons">${reasons}</div></div></div>
+      <div class="foot">
+        <a class="link" href="#" onclick="toast('Opens the listing on Jumia');return false">Open on Jumia ${ic("ext")}</a>
+        ${reasons ? `<button class="why-btn" data-why="${c.id}" aria-expanded="${open}">Why this match ${ic("chev")}</button>` : ""}
+      </div>
+    </div>
+  </article>`;
+}
+
+function section(icon, title, help, items, bestId) {
+  if (!items.length) return "";
+  return `<div class="section-h"><span class="ic">${ic(icon)}</span><h2>${title}</h2><span class="count num">${items.length}</span><span class="help">${help}</span></div>
+    ${items.map((c) => card(c, { best: c.id === bestId })).join("")}`;
+}
+function fold(icon, title, sub, items, warn) {
+  if (!items.length) return "";
+  return `<details class="fold ${warn ? "warnish" : ""}"><summary><span class="ic" style="color:var(--text-3)">${ic(icon)}</span><span class="txt"><b>${title} <span class="num" style="color:var(--text-3);font-weight:500">· ${items.length}</span></b><small>${sub}</small></span>${ic("chev", "chev")}</summary>
+    <div class="inner">${items.map((c) => card(c)).join("")}</div></details>`;
+}
+
+function verdict() {
+  const same = data().filter((c) => c.match === "same-item").sort((a, b) => a.price - b.price);
+  const cheapest = same[0];
+  if (cheapest && cheapest.price < SOURCE.price) {
+    const save = SOURCE.price - cheapest.price;
+    return `<section class="verdict save">
+      <span class="tag">${ic("trend")} Same phone, lower price</span>
+      <div class="big num" data-count="${save}">Save ${naira(save)}</div>
+      <p>Cheapest of ${same.length} sellers with this exact phone.</p>
+      <div class="compare">
+        <div class="old"><span>You're viewing</span><b class="num">${naira(SOURCE.price)}</b></div>
+        <div class="arrow">${ic("arrow")}</div>
+        <div><span>${cheapest.seller}</span><b class="num" style="color:var(--save)">${naira(cheapest.price)}</b></div>
+      </div>
+      <div class="cta"><button class="btn btn-primary" onclick="toast('Opens the cheapest listing')">Open cheapest ${ic("ext")}</button></div>
+    </section>`;
+  }
+  return `<section class="verdict ok">
+    <span class="tag">${ic("check-circle")} Good news</span>
+    <div class="big">You already have the lowest price</div>
+    <p>We compared ${same.length} other sellers of this exact phone. None sell it for less.</p>
+  </section>
+  <div class="trust">${ic("shield")}<div><b>Safer seller, same price:</b> GadgetZone has it for ${naira(SOURCE.price)} with a <b>95%</b> seller score (yours: ${SOURCE.sellerScore}%). <a class="link" href="#" onclick="toast('Opens GadgetZone listing');return false" style="display:inline-flex">Open ${ic("ext")}</a></div></div>`;
+}
+
+function filtersBar() {
+  const chip = (key, label) => `<button class="chip" data-chip="${key}" aria-pressed="${state[key]}">${ic("check")}${label}</button>`;
+  const q = (v, l) => `<button data-q="${v}" aria-pressed="${state.quality === v}">${l}</button>`;
+  return `<div class="filters">${chip("cheaper", "Cheaper only")}${chip("brand", "Same brand")}<span class="sep"></span><div class="seg" role="group" aria-label="Match">${q("any", "Any")}${q("good", "Good")}${q("best", "Best")}</div></div>`;
+}
+
+function viewResults() {
+  const items = filtered();
+  const same = items.filter((c) => c.match === "same-item").sort((a, b) => a.price - b.price);
+  const best = same.find((c) => c.price < SOURCE.price);
+  const vari = items.filter((c) => c.match === "variant");
+  const alt = items.filter((c) => c.match === "alternative");
+  const acc = items.filter((c) => c.match === "accessory");
+  const sus = items.filter((c) => c.match === "suspicious");
+  const main = same.length + vari.length + alt.length;
+  return `${verdict()}
+    ${filtersBar()}
+    ${main === 0 ? `<div class="nothing">Nothing matches these filters. <button id="clear">Clear filters</button></div>` : ""}
+    ${section("store", "Same item, other sellers", "", same, best?.id)}
+    ${section("layers", "Other sizes", "", vari)}
+    ${section("bulb", "Similar phones", "", alt)}
+    ${fold("plug", "Accessories", "Cases and parts made for this phone", acc)}
+    ${fold("alert", "Hidden: looks too cheap", "Often a fake, a part, or a bait listing", sus, true)}`;
+}
+
+/* ---------- Render ---------- */
+function render(animate = false) {
+  const body = $("#body");
+  const scrollTop = $("#scroll").scrollTop;
+  let html = "";
+  if (state.phase === "idle") html = viewIdle();
+  else if (state.phase === "loading") html = viewLoading(state.step);
+  else if (state.phase === "error") html = viewError();
+  else html = viewResults();
+  // keep open <details> across re-renders
+  const openFolds = [...body.querySelectorAll("details[open] summary b")].map((b) => b.textContent.split(" ·")[0]);
+  body.innerHTML = html;
+  body.querySelectorAll("details summary b").forEach((b) => { if (openFolds.includes(b.textContent.split(" ·")[0])) b.closest("details").open = true; });
+  body.classList.toggle("enter", animate);
+  if (!animate) $("#scroll").scrollTop = scrollTop;
+  $("#progress").classList.toggle("on", state.phase === "loading");
+  $("#refresh").hidden = state.phase !== "done";
+  if (animate) countUp();
+  bind();
+}
+
+function countUp() {
+  const el = $("[data-count]");
+  if (!el) return;
+  const target = +el.dataset.count;
+  const t0 = performance.now(), dur = 900;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const tick = (t) => {
+    const p = reduce ? 1 : Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = "Save " + naira(target * e);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function start() {
+  clearTimers();
+  state.phase = "loading"; state.step = 0; state.open.clear();
+  $("#scroll").scrollTop = 0;
+  render(true);
+  later(700, () => { state.step = 1; render(); });
+  later(1700, () => { state.step = 2; render(); });
+  later(2700, () => {
+    state.step = 3; render();
+    later(350, () => {
+      state.phase = state.scenario === "fail" ? "error" : "done";
+      render(true);
+    });
+  });
+}
+
+function bind() {
+  $("#go")?.addEventListener("click", start);
+  $("#retry")?.addEventListener("click", () => { state.scenario = "save"; syncSeg("#scenario", "save"); start(); });
+  $("#stop")?.addEventListener("click", () => { clearTimers(); state.phase = "idle"; render(true); toast("Search stopped"); });
+  $("#clear")?.addEventListener("click", () => { state.cheaper = false; state.brand = false; state.quality = "any"; render(); });
+  document.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { state[b.dataset.chip] = !state[b.dataset.chip]; render(); }));
+  document.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => { state.quality = b.dataset.q; render(); }));
+  document.querySelectorAll("[data-why]").forEach((b) => b.addEventListener("click", () => {
+    const id = +b.dataset.why;
+    const open = !state.open.has(id);
+    open ? state.open.add(id) : state.open.delete(id);
+    b.setAttribute("aria-expanded", open);
+    b.closest(".card").querySelector(".collapse").classList.toggle("open", open);
+  }));
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.querySelector("span").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+function syncSeg(sel, v) { document.querySelectorAll(`${sel} button`).forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v)); }
+
+$("#scenario").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.scenario = b.dataset.v; syncSeg("#scenario", state.scenario);
+  clearTimers(); state.phase = "idle"; render(true);
+});
+$("#theme").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  syncSeg("#theme", b.dataset.v);
+  if (b.dataset.v === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", b.dataset.v);
+});
+$("#reset").addEventListener("click", () => { clearTimers(); state.phase = "idle"; state.cheaper = true; state.brand = false; state.quality = "any"; render(true); });
+$("#refresh").addEventListener("click", start);
+
+render(true);
+</script>
+</body>
+</html>

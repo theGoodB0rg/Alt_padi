@@ -1,62 +1,121 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { SidePanel } from "@ui/SidePanel";
-import type { ProductSnapshot, SearchRun } from "@core/types";
+import { SidePanel, type FindAlternatives } from "@ui/SidePanel";
+import type { SearchProgress, SearchRun } from "@core/types";
+import { makeCandidate, makeProduct, makeRun } from "@test/fixtures";
 
-const sourceProduct: ProductSnapshot = {
-  title: "Samsung 32-inch HD TV UA32T5300",
-  url: "https://www.jumia.com.ng/source.html",
-  brand: "Samsung",
-  categoryPath: ["Electronics", "Televisions"],
-  price: { amount: 150000, currency: "NGN", raw: "₦150,000" },
-  specs: { model: "UA32T5300" },
-  source: "page"
-};
+const cheaper = makeCandidate({
+  product: { title: "Samsung 32-inch HD Smart TV UA32T5300", price: 132000, seller: "Samsung Official", sellerScore: 98 },
+  reasons: ["cheaper price", "same brand"]
+});
+const dearer = makeCandidate({ match: "alternative", product: { title: "LG 32-inch HD TV", price: 170000 } });
+const run = makeRun([cheaper, dearer]);
 
-const run: SearchRun = {
-  sourceProduct,
-  queries: ["Samsung UA32T5300"],
-  candidates: [
-    {
-      product: {
-        title: "Samsung 32-inch HD Smart TV UA32T5300",
-        url: "https://www.jumia.com.ng/alt.html",
-        brand: "Samsung",
-        categoryPath: ["Electronics", "Televisions"],
-        price: { amount: 132000, currency: "NGN", raw: "₦132,000" },
-        rating: 4.4,
-        reviewCount: 62,
-        specs: { model: "UA32T5300" },
-        source: "search"
-      },
-      match: "same-item",
-      totalScore: 74,
-      confidence: "high",
-      reasons: ["cheaper price", "same brand"],
-      warnings: [],
-      priceDelta: 18000,
-      priceDeltaPercent: 12
-    }
-  ],
-  errors: [],
-  startedAt: "2026-04-27T08:00:00.000Z",
-  completedAt: "2026-04-27T08:00:01.000Z",
-  cacheHit: false
-};
+/** A search the test resolves by hand, so in-flight states can be checked. */
+function deferredSearch() {
+  let resolve!: (run: SearchRun) => void;
+  let reject!: (error: Error) => void;
+  let report!: (progress: SearchProgress) => void;
+  const search = vi.fn<FindAlternatives>((onProgress) => {
+    report = onProgress;
+    return new Promise<SearchRun>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+  });
+  return { search, resolve: (r: SearchRun) => act(async () => resolve(r)), reject: (e: Error) => act(async () => reject(e)), report: (p: SearchProgress) => act(() => report(p)) };
+}
+
+const checkPrices = () => fireEvent.click(screen.getByRole("button", { name: /check prices/i }));
 
 describe("SidePanel", () => {
-  it("does not start searching before the user clicks and renders transparent results after click", async () => {
-    const onFindAlternatives = vi.fn().mockResolvedValue(run);
-    render(<SidePanel onFindAlternatives={onFindAlternatives} />);
+  it("waits for the user, shows progress, then leads with the saving", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
 
     expect(screen.getByRole("heading", { name: "AltPadi" })).toBeInTheDocument();
-    expect(onFindAlternatives).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /find cheaper alternatives/i }));
+    expect(pending.search).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(onFindAlternatives).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole("heading", { name: "AltPadi" })).toBeInTheDocument();
+    checkPrices();
+    const progress = screen.getByRole("status", { name: /search progress/i });
+    expect(within(progress).getByText("Reading this product")).toBeInTheDocument();
+
+    pending.report({ stage: "searching", done: 1, total: 3 });
+    expect(within(progress).getByText("1 of 3")).toBeInTheDocument();
+
+    await pending.resolve(run);
+
+    expect(screen.queryByRole("status", { name: /search progress/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Save ₦18,000")).toBeInTheDocument();
     expect(screen.getByText("Samsung 32-inch HD Smart TV UA32T5300")).toBeInTheDocument();
-    expect(screen.getByText("same brand")).toBeInTheDocument();
-    expect(screen.getByLabelText("Cheaper only")).toBeChecked();
+    expect(screen.queryByText("LG 32-inch HD TV")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cheaper only" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets the user stop a search and ignores its late result", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+
+    checkPrices();
+    fireEvent.click(screen.getByRole("button", { name: /stop/i }));
+    await pending.resolve(run);
+
+    expect(screen.queryByText(/save/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /check prices/i })).toBeEnabled();
+  });
+
+  it("explains a wrong page in plain words and lets the user retry", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+
+    checkPrices();
+    await pending.reject(new Error("Open a Jumia Nigeria product page before searching."));
+
+    expect(screen.getByRole("heading", { name: "Open a Jumia product" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(pending.search).toHaveBeenCalledTimes(2);
+  });
+
+  it("updates results straight away when a filter chip is tapped", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+    checkPrices();
+    await pending.resolve(run);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cheaper only" }));
+    expect(screen.getByText("LG 32-inch HD TV")).toBeInTheDocument();
+  });
+
+  it("offers to clear filters when nothing is left", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+    checkPrices();
+    await pending.resolve(makeRun([dearer]));
+
+    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+    expect(screen.getByText("LG 32-inch HD TV")).toBeInTheDocument();
+  });
+
+  it("keeps reasons tucked away until asked", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+    checkPrices();
+    await pending.resolve(run);
+
+    const why = screen.getByRole("button", { name: /why this match/i });
+    expect(why).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(why);
+    expect(why).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("same brand")).toBeVisible();
+    expect(screen.queryByText("cheaper price")).not.toBeInTheDocument();
+  });
+
+  it("says so when the user already has the lowest price", async () => {
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} />);
+    checkPrices();
+    await pending.resolve(makeRun([makeCandidate({ product: { price: 160000 } })], makeProduct()));
+
+    expect(screen.getByText("You already have the lowest price")).toBeInTheDocument();
   });
 });

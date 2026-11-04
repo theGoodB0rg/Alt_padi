@@ -1,7 +1,7 @@
 import { scoreCandidates, summarizeCandidates } from "@core/matcher/matcher";
 import { relateProducts } from "@core/matcher/product-identity";
 import { similarity } from "@core/parsers/tokenizer";
-import type { ProductSnapshot, SearchRun } from "@core/types";
+import type { ProductSnapshot, SearchProgress, SearchRun } from "@core/types";
 import type { MarketplaceAdapter } from "@marketplaces/adapter";
 
 export interface SearchRunnerOptions {
@@ -9,6 +9,7 @@ export interface SearchRunnerOptions {
   maxSearchCandidates: number;
   maxDetailFetches: number;
   fetchText(url: string): Promise<string>;
+  onProgress?(progress: SearchProgress): void;
 }
 
 export async function runAlternativeSearch(
@@ -25,7 +26,9 @@ export async function runAlternativeSearch(
   const accessoryUrls = new Set<string>();
   const maxAccessories = Math.min(8, Math.ceil(options.maxSearchCandidates / 4));
 
-  for (const request of requests) {
+  const report = options.onProgress ?? (() => {});
+  report({ stage: "searching", done: 0, total: requests.length });
+  for (const [index, request] of requests.entries()) {
     try {
       const html = await options.fetchText(request.url);
       const results = adapter.parseSearchResults(html, request.url);
@@ -44,9 +47,11 @@ export async function runAlternativeSearch(
     } catch (error) {
       errors.push(`${request.query}: ${errorMessage(error)}`);
     }
+    report({ stage: "searching", done: index + 1, total: requests.length });
   }
 
   const candidates = [...candidatesByUrl.values()];
+  report({ stage: "comparing", found: candidates.length });
   const detailTargets = candidates
     .filter((candidate) => shouldFetchDetails(sourceProduct, candidate))
     .sort((a, b) => detailPriority(sourceProduct, b) - detailPriority(sourceProduct, a))

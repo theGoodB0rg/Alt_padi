@@ -85,3 +85,9 @@ export interface RunSummary {
   /** Same-model listings priced so low they are probably accessories, parts or bait. */
   suspiciousCount: number;
 }
+
+/** What a running search is doing, for the side panel's progress steps. */
+export type SearchProgress =
+  | { stage: "reading" }
+  | { stage: "searching"; done: number; total: number }
+  | { stage: "comparing"; found: number };
