@@ -25,7 +25,7 @@ export function Searching({ progress, onStop }: SearchingProps) {
         ))}
       </div>
       <div className="searchingFoot">
-        <span>Usually takes a few seconds</span>
+        <span>Usually takes 10–20 seconds</span>
         <button className="button quiet" type="button" onClick={onStop}>
           <X size={14} aria-hidden="true" /> Stop
         </button>

@@ -2,6 +2,7 @@ import { runAlternativeSearch } from "@core/search-runner";
 import { fetchCurrentProductFromUrl } from "@extension/currentProduct";
 import type { SearchProgress } from "@core/types";
 import type { ExtensionRequest, ExtensionResponse, SearchProgressEvent } from "@extension/messages";
+import { createPoliteFetch } from "@extension/politeFetch";
 import { jumiaNgAdapter } from "@marketplaces/jumia-ng/adapter";
 
 const LIMITS = {
@@ -9,6 +10,14 @@ const LIMITS = {
   maxSearchCandidates: 40,
   maxDetailFetches: 10
 };
+
+// Jumia answers bursts with HTTP 429, so space requests out and back off when asked.
+const politeFetch = createPoliteFetch((url) => fetchWithTimeout(url), {
+  minGapMs: 600,
+  maxRetries: 2,
+  backoffMs: 1500,
+  maxWaitMs: 8000
+});
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -56,20 +65,24 @@ async function fetchTextWithCache(url: string): Promise<string> {
   const value = cached[cacheKey] as { html: string; expiresAt: number } | undefined;
   if (value && value.expiresAt > Date.now()) return value.html;
 
+  const response = await politeFetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const html = await response.text();
+  await cacheWrite(cacheKey, { html, expiresAt: Date.now() + ttlFor(url) });
+  return html;
+}
+
+async function fetchWithTimeout(url: string): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const response = await fetch(url, {
+    return await fetch(url, {
       signal: controller.signal,
       credentials: "include",
       headers: {
         Accept: "text/html,application/xhtml+xml"
       }
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
-    await cacheWrite(cacheKey, { html, expiresAt: Date.now() + ttlFor(url) });
-    return html;
   } finally {
     clearTimeout(timeout);
   }

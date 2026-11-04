@@ -36,7 +36,7 @@ export function StartScreen({ onStart, stats, showPinTip, onDismissPinTip }: Sta
           </span>
         </div>
         <h2>Is this the best price?</h2>
-        <p>Find the same item for less, or a safer seller, in a few seconds.</p>
+        <p>Find the same item for less, or a safer seller, without opening a dozen tabs.</p>
         <button className="button primary wide" type="button" onClick={onStart}>
           <Search size={16} aria-hidden="true" /> Check prices
         </button>

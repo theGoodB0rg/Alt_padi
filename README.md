@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Is this the best price on Jumia?</b><br />
-  A Chrome side panel that checks other sellers of the same item in a few seconds,
+  A Chrome side panel that checks other sellers of the same item for you,
   and tells you plainly whether you can pay less.
 </p>
 
