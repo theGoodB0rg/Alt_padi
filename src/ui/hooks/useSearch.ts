@@ -14,7 +14,7 @@ export type SearchState =
  * One search at a time. Every start/stop bumps a token, so a result or progress event that
  * arrives after the user stopped (or restarted) is ignored instead of overwriting the screen.
  */
-export function useSearch(find: FindAlternatives) {
+export function useSearch(find: FindAlternatives, onDone?: (run: SearchRun) => void) {
   const [state, setState] = useState<SearchState>({ status: "idle" });
   const token = useRef(0);
 
@@ -25,12 +25,16 @@ export function useSearch(find: FindAlternatives) {
     find((progress) => {
       if (isCurrent()) setState((s) => (s.status === "loading" ? { ...s, progress } : s));
     }).then(
-      (run) => isCurrent() && setState({ status: "done", run }),
+      (run) => {
+        if (!isCurrent()) return;
+        setState({ status: "done", run });
+        onDone?.(run);
+      },
       (error: unknown) =>
         isCurrent() &&
         setState({ status: "error", error: describeError(error instanceof Error ? error.message : String(error)) })
     );
-  }, [find]);
+  }, [find, onDone]);
 
   /** Back to the last results if there were any, otherwise to the start screen. */
   const stop = useCallback(() => {

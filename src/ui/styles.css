@@ -191,6 +191,13 @@ p {
   padding: 16px;
 }
 
+/* Start and error screens sit in the optical middle instead of hugging the top. */
+.panelBody.idle,
+.panelBody.error {
+  align-content: center;
+  padding-bottom: 12vh;
+}
+
 .panelFoot {
   padding: 10px 16px;
   border-top: 1px solid var(--line);
@@ -1027,6 +1034,207 @@ p {
   transform: rotate(180deg);
 }
 
+/* ============ Start screen ============ */
+.hero {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: -16px -16px 0;
+  padding: 40px 24px 24px;
+  overflow: hidden;
+  text-align: center;
+  isolation: isolate;
+}
+
+.hero h2 {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.hero > p {
+  max-width: 30ch;
+  margin-bottom: 10px;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 40%, transparent 100%);
+}
+
+.backdrop .glow {
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  width: 140%;
+  aspect-ratio: 1;
+  background:
+    radial-gradient(closest-side, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%),
+    radial-gradient(closest-side at 70% 60%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 60%);
+  transform: translateX(-50%);
+  animation: drift 14s ease-in-out infinite alternate;
+}
+
+.backdrop .dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 30%, #000 20%, transparent 75%);
+}
+
+.heroOrb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin: 8px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  color: var(--brand-text);
+  background: linear-gradient(160deg, var(--surface), color-mix(in srgb, var(--surface) 70%, var(--brand-soft)));
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgb(255 255 255 / 60%);
+}
+
+.heroOrb > svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.6;
+}
+
+.halo {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  border-radius: 22px;
+  animation: halo 3.6s var(--ease) infinite;
+}
+
+.halo.late {
+  animation-delay: 1.8s;
+}
+
+.float {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text-3);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  animation: bob 6s ease-in-out infinite;
+}
+
+.float svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+}
+
+.float.one {
+  top: -10px;
+  left: -46px;
+  color: var(--brand-text);
+}
+
+.float.two {
+  top: 30px;
+  right: -52px;
+  color: var(--save);
+  animation-delay: -2s;
+}
+
+.float.three {
+  bottom: -14px;
+  left: -30px;
+  animation-delay: -4s;
+}
+
+.savingsBadge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--gold) 35%, var(--line));
+  border-radius: 999px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--gold) 9%, var(--surface));
+  font-size: 12.5px;
+}
+
+.savingsBadge svg {
+  color: var(--gold);
+}
+
+.savingsBadge b {
+  color: var(--text);
+}
+
+.howItWorks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.howItWorks li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.howItWorks li > svg {
+  color: var(--brand-text);
+}
+
+.stepNo {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pinTip {
+  align-items: center;
+}
+
+.pinTip p {
+  flex: 1;
+}
+
+.iconButton.small {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
 /* ============ Motion ============ */
 .enter > * {
   animation: rise 0.5s var(--ease) both;
@@ -1056,6 +1264,30 @@ p {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+}
+
+@keyframes drift {
+  to {
+    transform: translateX(-46%) translateY(6%) rotate(8deg);
+  }
+}
+
+@keyframes halo {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+@keyframes bob {
+  50% {
+    transform: translateY(-5px);
   }
 }
 

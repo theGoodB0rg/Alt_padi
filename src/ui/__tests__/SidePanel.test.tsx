@@ -1,8 +1,22 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SidePanel, type FindAlternatives } from "@ui/SidePanel";
 import type { SearchProgress, SearchRun } from "@core/types";
 import { makeCandidate, makeProduct, makeRun } from "@test/fixtures";
+import { EMPTY_STATS, type SavingsStats, type SavingsStore } from "@ui/model/savings";
+
+function memoryStore(initial: SavingsStats = EMPTY_STATS) {
+  let stats = initial;
+  return {
+    load: vi.fn(async () => stats),
+    save: vi.fn(async (next: SavingsStats) => {
+      stats = next;
+    }),
+    get current() {
+      return stats;
+    }
+  } satisfies SavingsStore & { current: SavingsStats };
+}
 
 const cheaper = makeCandidate({
   product: { title: "Samsung 32-inch HD Smart TV UA32T5300", price: 132000, seller: "Samsung Official", sellerScore: 98 },
@@ -117,5 +131,60 @@ describe("SidePanel", () => {
     await pending.resolve(makeRun([makeCandidate({ product: { price: 160000 } })], makeProduct()));
 
     expect(screen.getByText("You already have the lowest price")).toBeInTheDocument();
+  });
+
+  describe("start screen", () => {
+    it("explains how it works in three steps", () => {
+      render(<SidePanel onFindAlternatives={vi.fn()} />);
+      const steps = screen.getByRole("list", { name: /how it works/i });
+      expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    });
+
+    it("shows savings found so far, once there are any", async () => {
+      const store = memoryStore({ checks: 6, found: { a: 30000, b: 17500 } });
+      render(<SidePanel onFindAlternatives={vi.fn()} savings={store} />);
+      expect(await screen.findByText("₦47,500")).toBeInTheDocument();
+      expect(screen.getByText(/found across 6 checks/i)).toBeInTheDocument();
+    });
+
+    it("stays quiet about savings for a new user", async () => {
+      const store = memoryStore();
+      render(<SidePanel onFindAlternatives={vi.fn()} savings={store} />);
+      await waitFor(() => expect(store.load).toHaveBeenCalled());
+      expect(screen.queryByText(/savings found/i)).not.toBeInTheDocument();
+    });
+
+    it("suggests pinning only when AltPadi is not on the toolbar, and can be dismissed", async () => {
+      const { unmount } = render(<SidePanel onFindAlternatives={vi.fn()} isPinned={async () => true} />);
+      await act(async () => {});
+      expect(screen.queryByText(/pin altpadi/i)).not.toBeInTheDocument();
+      unmount();
+
+      render(<SidePanel onFindAlternatives={vi.fn()} isPinned={async () => false} />);
+      expect(await screen.findByText(/pin altpadi/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+      expect(screen.queryByText(/pin altpadi/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("records what a finished search found", async () => {
+    const store = memoryStore();
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} savings={store} />);
+    checkPrices();
+    await pending.resolve(run);
+
+    await waitFor(() => expect(store.current).toEqual({ checks: 1, found: { [run.sourceProduct.url]: 18000 } }));
+  });
+
+  it("does not record a search the user stopped", async () => {
+    const store = memoryStore();
+    const pending = deferredSearch();
+    render(<SidePanel onFindAlternatives={pending.search} savings={store} />);
+    checkPrices();
+    fireEvent.click(screen.getByRole("button", { name: /stop/i }));
+    await pending.resolve(run);
+
+    expect(store.save).not.toHaveBeenCalled();
   });
 });

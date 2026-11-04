@@ -7,3 +7,4 @@ coverage/
 .env.*
 *.log
 *.zip
+scripts/screenshots/run.json

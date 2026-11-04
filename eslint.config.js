@@ -15,6 +15,11 @@ export default tseslint.config(
     }
   },
   {
+    // Build and screenshot helpers run in Node, not the browser.
+    files: ["scripts/**/*.{js,mjs,ts}"],
+    languageOptions: { globals: { process: "readonly", console: "readonly" } }
+  },
+  {
     ignores: ["dist", "node_modules", "coverage"]
   }
 );
